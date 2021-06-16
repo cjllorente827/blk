@@ -1,11 +1,12 @@
 import yt
+yt.enable_parallelism()
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
 
-
-from proto_query import Do_Query
+from blk import Do_Query
 
 FIELD_CMAPS = {
     'density': 'viridis',
@@ -17,11 +18,19 @@ def main():
     #run_smol_test()
 
     #run_big_test()
-    
+
     # plot big dataset from the cache
     big_ds_fname  = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
-    qdata, qtime = Do_Query(Query, big_ds_fname)
-    plot(qdata, 'density')
+    density, qtime = Do_Query(ytProjection, big_ds_fname, 'density')
+
+    big_ds_fname  = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
+    temperature, qtime = Do_Query(ytProjection, big_ds_fname, 'temperature')
+
+    if yt.is_root():
+        plot(density, 'density')
+        plot(temperature, 'temperature')
+
+        double_plot([density, temperature], ['density', 'temperature'])
     
 
 
@@ -32,14 +41,14 @@ def run_smol_test():
     smol_ds_fname = "/mnt/research/galaxies-REU/sims/cosmological/set1_LR/halo_008508/RD0042/RD0042"
     
     # do the Query once with a clear cache
-    qdata, no_cache_time = Do_Query(Query, smol_ds_fname, clear_cache=True)
+    qdata, no_cache_time = Do_Query(ytProjection, smol_ds_fname, 'density', clear_cache=True)
 
     # do it again but cached this time
-    qdata, cache_time = Do_Query(Query, smol_ds_fname)
+    qdata, cache_time = Do_Query(ytProjection, smol_ds_fname, 'density')
 
     print(f"""
-No cache query time : {no_cache_time}
-Cached query time   : {cache_time}
+No cache query time : {no_cache_time} seconds
+Cached query time   : {cache_time} seconds
 """)
 
     #plot(qdata)
@@ -51,35 +60,24 @@ def run_big_test():
     big_ds_fname  = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
 
     # do the Query once with a clear cache
-    qdata, no_cache_time = Do_Query(Query, big_ds_fname, clear_cache=True)
+    qdata, no_cache_time = Do_Query(ytProjection, big_ds_fname, 'density', clear_cache=True)
 
     # do it again but cached this time
-    qdata, cache_time = Do_Query(Query, big_ds_fname)
+    qdata, cache_time = Do_Query(ytProjection, big_ds_fname, 'density')
 
     print(f"""
-No cache query time : {no_cache_time}
-Cached query time   : {cache_time}
+No cache query time : {no_cache_time} seconds
+Cached query time   : {cache_time} seconds
 """)
 
     #plot(qdata)
 
 
-
-# Query should take ONlY a dataset filename as an argument
-# and then return some serializable object that represents
-# the desired result of that query
-#
-# Later on, I can add the argument list onto the target string
-# so that all arguments passed to the query function get 
-# saved in the hash
-def Query(ds_fname):
+def ytProjection(ds_fname, field):
 
     ds = yt.load(ds_fname)
-
-    field = 'density'
-
-    plot = yt.ProjectionPlot(ds, 'z', field, weight_field='density')
-    frb = plot.data_source.to_frb(ds.domain_width[0], 800)
+    p = yt.ProjectionPlot(ds, 'z', field, weight_field='density')
+    frb = p.data_source.to_frb(ds.domain_width[0], 1024)
     result = np.array(frb[field])
     return result
 
@@ -89,6 +87,19 @@ def plot(projection_data, field):
             norm=LogNorm(), cmap=FIELD_CMAPS[field])
     cbar = plt.colorbar()
     cbar.set_label(field)
+    plt.show()
+
+def double_plot(data_array, field_names):
+
+    fig, axes = plt.subplots(1,2)
+
+    for i,ax in enumerate(axes):
+        im = ax.imshow(data_array[i], origin='lower', 
+            norm=LogNorm(), cmap=FIELD_CMAPS[field_names[i]])
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(im, cax=cax)
+        cbar.set_label(field_names[i])
     plt.show()
 
 if __name__ == "__main__":
