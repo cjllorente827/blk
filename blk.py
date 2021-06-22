@@ -53,6 +53,7 @@ def Do_Query(query_func, *args, clear_cache=False):
         if rank == 0:
             # if we have a previous result, serve that up
             print(f"Found cache result at: {cache_fname}")
+            print(f"Loading cached file....")
             start = time.time()
 
             
