@@ -10,7 +10,7 @@ from mpi4py import MPI
 ######################################################################
 # THIS IS WHERE THE MAGIC HAPPENS
 ######################################################################
-def Do_Query(query_func, *args, clear_cache=False):
+def Do_Query(query_func, *args, clear_cache=False, run_as_root=False):
     """
     Attempts to perform a dataset query function with *args passed to that 
     function, but will first check blk_config.CACHE_DIR to see if that query
@@ -29,10 +29,15 @@ def Do_Query(query_func, *args, clear_cache=False):
     Keyword arguments:
     clear_cache --  Clear the cache result found for this query and rerun it 
                     (Default: False)
+    run_as_root -- Run this function as if it were running on a root process, 
+                   meaning that it should output info statements and save
+                   files to the cache.
     """
 
     # get our rank in case we're running in parallel
     rank = MPI.COMM_WORLD.Get_rank()
+
+    root = rank == 0 or run_as_root
 
     # get the hash
     qhash = get_query_hash(query_func, *args)
@@ -43,14 +48,14 @@ def Do_Query(query_func, *args, clear_cache=False):
     
     # sometimes you wanna clear the cache and start over
     if clear_cache and cache_entry_exists:
-        if rank == 0 : os.remove(cache_fname)
+        if root : os.remove(cache_fname)
         cache_entry_exists = False
         
 
     # check the qcache  
     if cache_entry_exists:
         
-        if rank == 0:
+        if root:
             # if we have a previous result, serve that up
             print(f"Found cache result at: {cache_fname}")
             print(f"Loading cached file....")
@@ -67,7 +72,7 @@ def Do_Query(query_func, *args, clear_cache=False):
             return None, None
     
     # otherwise run the actual query
-    if rank == 0: print(f"No result found for {cache_fname}. Running query....")
+    if root: print(f"No result found for {cache_fname}. Running query....")
     start = time.time()
 
     result = query_func(*args)
@@ -75,7 +80,7 @@ def Do_Query(query_func, *args, clear_cache=False):
     query_time = time.time() - start
 
     # and then save the result in the cache
-    if rank == 0:
+    if root:
         print(f"Saving result to file {cache_fname}")
         with open(cache_fname, 'wb') as f:
             pickle.dump(result, f)
