@@ -1,40 +1,59 @@
 
 
-import gc, yt
+import gc, yt, time
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
 import proto_movie
 
+OUT_DIR = "/mnt/home/llorente/comp_structure_research/general_analysis"
+
 def main():
-    fname = '/mnt/research/galaxies-REU/sims/cosmological/set1_LR/halo_008508/RD0042/RD0042'
-    nframes = 150
+    #fname = '/mnt/research/galaxies-REU/sims/cosmological/set1_LR/halo_008508/RD0042/RD0042'
+    fname = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
+    nframes = 300
 
-    proto_movie.Movie("test_proto_movie", fname, nframes, max_procs=4)
+    start = time.time()
+    proto_movie.Movie("test_proto_movie", fname, nframes, max_procs=16, output_dir=OUT_DIR)
+
+    elapsed = time.time() - start
+
+    print(f"""
+Total time: {str(datetime.timedelta(seconds=elapsed))}     
+    """)
 
 
-def Query(ds_fname, frame_start, frame_end):
+def Query(ds_fname, frame_start, frame_end, total_frames):
+
+    yt.funcs.mylog.setLevel(50)
 
     ds = yt.load(ds_fname)
     nframes = frame_end - frame_start
 
     L = ds.domain_width[0].to('Mpc/h')
-    dL = (ds.quan(0.5, 'Mpc/h') / L ).value
-    vel = (1.0-dL)/nframes
+    dL = (ds.quan(0.2, 'Mpc/h') / L ).value
+    vel = (1.0-dL)/total_frames
     frame_data = np.zeros((nframes, 800, 800))
-
-    ranges = zip(range(frame_start, frame_end), range(nframes))
 
     gc.disable()
     
-    for i, j in ranges:
-        next_slab = ds.r[:,:,i*vel : i*vel+dL]
+    # We need two sets of indices: 
+    # one that starts at f_start and ends at f_end -- fsi (frame start index)
+    # and the other that starts at zero and ends at f_end-f_start -- zsi (zero start index)
+    #
+    # the data array must be indexed with the zero start index
+    # creation of the slab must use the frame start index
+    indexes = zip(range(frame_start, frame_end), range(nframes))
+
+    for fsi,zsi in indexes:
+        next_slab = ds.r[:,:,fsi*vel : fsi*vel+dL]
         plot = yt.ProjectionPlot(ds, 'z', 'density', data_source=next_slab, weight_field='density')
 
         frame = np.array(plot.frb['density'])
 
-        frame_data[j][:] = frame[:]
+        frame_data[zsi][:] = frame[:]
 
         del frame
         del next_slab
@@ -49,7 +68,7 @@ def Analysis(data):
     print("Stub method for Analysis")
 
 def Plot(data, index):
-    fig, ax = plt.subplots(1,1)
+    fig, ax = plt.subplots(1,1, figsize=(8,6))
 
     im = ax.imshow(data, origin='lower', 
         norm=LogNorm(), cmap='viridis',
@@ -59,9 +78,11 @@ def Plot(data, index):
     cbar.set_label("Density")
     
     def output_fname(n):
-        return f'tmp/tmp_{n:04d}.png'
+        return f'{OUT_DIR}/tmp/tmp_{n:04d}.png'
 
-    plt.savefig(output_fname(index))
+    out_file = output_fname(index)
+    print(f"Saving to file: {out_file}")
+    plt.savefig(out_file)
     plt.close()
 
 

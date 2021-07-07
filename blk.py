@@ -1,8 +1,12 @@
-import pickle, inspect, os, hashlib, time
+import pickle, inspect, os, hashlib, time, shelve
 
 # feels like cheating but whatever, I'm too lazy to parse a 
 # whole-ass parameter file
 import blk_config
+
+from yt.convenience import load as yt_load
+from yt.utilities.exceptions import YTOutputNotIdentified
+
 
 from mpi4py import MPI
 
@@ -42,36 +46,39 @@ def Do_Query(query_func, *args, clear_cache=False, run_as_root=False):
     # get the hash
     qhash = get_query_hash(query_func, *args)
 
-    
     cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
-    cache_entry_exists = os.path.isfile(cache_fname)
+    # look for files with these extensions as well
+    # other_fnames = []
+    # for ext in ['.dir', '.h5','.dat', '.bak']:
+    #     other_fnames.append(cache_fname+ext)
     
+
     # sometimes you wanna clear the cache and start over
-    if clear_cache and cache_entry_exists:
-        if root : os.remove(cache_fname)
-        cache_entry_exists = False
-        
+    if clear_cache and root:
+        try: 
+            os.remove(cache_fname)
+        except FileNotFoundError as e:
+            pass
 
-    # check the qcache  
-    if cache_entry_exists:
-        
-        if root:
-            # if we have a previous result, serve that up
-            print(f"Found cache result at: {cache_fname}")
-            print(f"Loading cached file....")
-            start = time.time()
-
-            
-            with open(cache_fname, 'rb') as f:
-                result = pickle.load(f)
-
-            query_time = time.time() - start
-            print("Done.")
-            return result, query_time
-        else: 
-            return None, None
+        # for fname in other_fnames:
+        #     try:
+        #         os.remove(fname)
+        #     except FileNotFoundError as e:
+        #         pass
     
-    # otherwise run the actual query
+    # non-root processes don't have to bother returning a result
+    # unless specified by the user that they should be run as root
+    if root:
+        try:
+            result, qtime = load_result_from_cache(cache_fname)
+        except FileNotFoundError as e:
+            pass
+        else:
+            print(f"Found cache result at {cache_fname}")
+            return result, qtime
+        
+
+    # if a cache result was not found, perform the actual query
     if root: print(f"No result found for {cache_fname}. Running query....")
     start = time.time()
 
@@ -81,12 +88,7 @@ def Do_Query(query_func, *args, clear_cache=False, run_as_root=False):
 
     # and then save the result in the cache
     if root:
-        print(f"Saving result to file {cache_fname}")
-        with open(cache_fname, 'wb') as f:
-            pickle.dump(result, f)
-
-        # and finally return 
-        print("Done.")
+        save_to_cache(result, cache_fname)
         return result, query_time
     else: 
         return None, None
@@ -117,3 +119,62 @@ def get_query_hash(query_func, *args):
     # convert string to a hash
     qhash = hashlib.md5(target.encode()).hexdigest()
     return qhash
+
+def load_result_from_cache(cache_fname):
+    # if we have a previous result, serve that up
+    start = time.time()
+
+    # try: 
+    #     result = yt_load(cache_fname)
+    # except YTOutputNotIdentified as e:
+    #     print("yt.load failed, falling back to pickle...")
+    # else: 
+    #     query_time = time.time() - start
+    #     print("Done.")
+
+    #     return result, query_time
+    # try: 
+    #     d = shelve.open(cache_fname)
+    # except FileNotFoundError as e:
+    #     print("shelve failed, falling back to pickle...")
+    # else: 
+    #     query_time = time.time() - start
+    #     print("Done.")
+
+    #     result = d["all"]
+    #     return result, query_time
+    try:
+        with open(cache_fname, 'rb') as f:
+            result = pickle.load(f)
+    except FileNotFoundError as e:
+        print(f"No cache result found for {cache_fname}")
+        raise 
+    else:
+        query_time = time.time() - start
+        print("Done.")
+
+        return result, query_time
+
+
+def save_to_cache(result, cache_fname):
+    print(f"Saving result to file {cache_fname}")
+ 
+    # try:
+    #     result.save_object("all", filename=cache_fname)
+    # except AttributeError as e:
+    #     print("save_object() failed, falling back to pickle...")
+    
+    with open(cache_fname, 'wb') as f:
+        pickle.dump(result, f, protocol=0)
+
+    print("Done.")
+    
+    
+    
+
+###############################################################
+# Constants needed for cohesion
+###############################################################
+
+# for distinguishing between the the 3 stages blk operates under
+QUERY, ANALYZE, PLOT = 1,2,3
