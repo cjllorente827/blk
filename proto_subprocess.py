@@ -13,36 +13,26 @@ params = comm.bcast(params, root=0)
 
 user_defined = importlib.import_module(params["module_name"])
 
-nframes = params["nframes"]
-ds_fname = params["ds_fname"]
+def Query_subprocess(args):
 
-f_start = int(rank/size * nframes)
-f_end = int ( (rank+1)/size * nframes )
+    qhash, qtime = blk.Do_Query(user_defined.Query,
+        *args, 
+        run_as_root=True, 
+        return_hash=True,
+        clear_cache=params["clear_cache"])
 
-def Query_subprocess():
-
-    data, qtime = blk.Do_Query(user_defined.Query,
-        ds_fname, f_start, f_end, nframes, run_as_root=True)
-
-    comm.gather(data, root=0)
+    comm.gather(qhash, root=0)
 
     comm.Disconnect()
 
 def Plot_subprocess():
     
-    data = None
-    data = comm.scatter(data, root=0)
+    datahash = None
+    datahash = comm.scatter(datahash, root=0)
 
-    # We need two sets of indices: 
-    # one that starts at f_start and ends at f_end -- fsi (frame start index)
-    # and the other that starts at zero and ends at f_end-f_start -- zsi (zero start index)
-    #
-    # the data array must be indexed with the zero_start index
-    # the plot function takes the frame start index as an argument for correct file output naming
-    indexes = zip(range(f_start, f_end), range(f_end - f_start))
+    data, load_time = blk.load_result_from_cache(datahash)
 
-    for fsi,zsi in indexes:
-        user_defined.Plot(data[zsi], fsi)
+    user_defined.Plot(data)
 
     finished = True
     comm.gather(finished, root=0)
@@ -53,6 +43,6 @@ def Plot_subprocess():
 if __name__ == "__main__":
     
     if params["stage"] == blk.QUERY:
-        Query_subprocess()
+        Query_subprocess(params["args"])
     elif params["stage"] == blk.PLOT:
         Plot_subprocess()

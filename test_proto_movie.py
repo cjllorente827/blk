@@ -11,12 +11,14 @@ import proto_movie
 OUT_DIR = "/mnt/home/llorente/comp_structure_research/general_analysis"
 
 def main():
-    #fname = '/mnt/research/galaxies-REU/sims/cosmological/set1_LR/halo_008508/RD0042/RD0042'
-    fname = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
+    fname = '/mnt/research/galaxies-REU/sims/cosmological/set1_LR/halo_008508/RD0042/RD0042'
+    #fname = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
+    #fname = "/mnt/home/llorente/cosmo_bigbox/50Mpc_512/RD0135/RD0135"
     nframes = 300
 
     start = time.time()
-    proto_movie.Movie("test_proto_movie", fname, nframes, max_procs=16, output_dir=OUT_DIR)
+    proto_movie.Movie("test_proto_movie", fname, nframes, max_procs=16, 
+        output_dir=OUT_DIR, out_fname="25Mpc_density_w_metallicity.mp4")
 
     elapsed = time.time() - start
 
@@ -49,9 +51,9 @@ def Query(ds_fname, frame_start, frame_end, total_frames):
 
     for fsi,zsi in indexes:
         next_slab = ds.r[:,:,fsi*vel : fsi*vel+dL]
-        plot = yt.ProjectionPlot(ds, 'z', 'density', data_source=next_slab, weight_field='density')
+        plot = yt.ProjectionPlot(ds, 'z', 'metallicity', data_source=next_slab, weight_field='density')
 
-        frame = np.array(plot.frb['density'])
+        frame = np.array(plot.frb['metallicity'])
 
         frame_data[zsi][:] = frame[:]
 
@@ -71,11 +73,11 @@ def Plot(data, index):
     fig, ax = plt.subplots(1,1, figsize=(8,6))
 
     im = ax.imshow(data, origin='lower', 
-        norm=LogNorm(), cmap='viridis',
-        vmin=1e-32, vmax=1e-27)
+        norm=LogNorm(), cmap='dusk',
+        vmin=1e-8, vmax=1)
 
     cbar = fig.colorbar(im)
-    cbar.set_label("Density")
+    cbar.set_label(r"Metallicity $(Z/Z_{\odot})$")
     
     def output_fname(n):
         return f'{OUT_DIR}/tmp/tmp_{n:04d}.png'
