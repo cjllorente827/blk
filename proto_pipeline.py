@@ -14,6 +14,11 @@ def Do_Pipeline(user_defined,
 
     user_module = importlib.import_module(user_defined)
 
+    # Special Note: Calling get_query_hash this way does NOT append the 
+    # process rank to the hash and therefore will result in a different
+    # hash than the rank 0 subprocess returns. This is important as 
+    # the null rank hash becomes the name of a file that stores the hashes
+    # from all the other processes.
     qhash_filename = blk.get_query_hash(user_module.Query, user_module.QUERY_ARGS)
 
     if clear_cache:
@@ -31,8 +36,6 @@ def Do_Pipeline(user_defined,
         "module_name" : user_defined,
         "max_procs"   : num_procs,
         "clear_cache" : clear_cache, 
-        "output_dir"  : output_dir, 
-        "temp_dir"    : temp_dir,
         "args"        : user_module.QUERY_ARGS,
         "stage"       : blk.QUERY
     }
@@ -61,7 +64,6 @@ def Do_Pipeline(user_defined,
     comm, size = spawn_comm(subprocess, num_procs, params)
 
     print("Scattering data...")
-    print(qhashes)
     comm.scatter(qhashes, root=MPI.ROOT)
 
     print("Gathering results...")
@@ -73,6 +75,10 @@ def Do_Pipeline(user_defined,
         assert done
 
     comm.Disconnect()
+
+    print("Finalizing...")
+
+    user_module.Finalize()
 
     print("All done")
 
