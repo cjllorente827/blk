@@ -116,7 +116,7 @@ def Pipeline(user_defined,
         params = {
             "module_name" : user_defined,
             "max_procs"   : num_procs,
-            "clear_cache" : force_query,
+            "clear_cache" : force_analyze, 
             "args"        : user_module.ANALYZE_ARGS,
             "stage"       : blk.ANALYZE
         }
@@ -146,7 +146,7 @@ def Pipeline(user_defined,
         params = {
             "module_name" : user_defined,
             "max_procs"   : num_procs,
-            "clear_cache" : clear_cache, 
+            "clear_cache" : False, 
             "args"        : user_module.PLOT_ARGS,
             "stage"       : blk.PLOT
         }

@@ -107,9 +107,9 @@ def Plot(track):
         return
 
     plt.pcolormesh( 10**track[0], 10**track[1], track[2],
-            norm=mcolors.LogNorm(), cmap="plasma",
-            vmin=1.,
-            vmax=1e13)
+            norm=mcolors.LogNorm(vmin=1., vmax=1e13), 
+            cmap="plasma",
+            )
     ax = plt.gca()
 
     ax.set(
