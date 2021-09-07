@@ -42,16 +42,14 @@ IMG_RES = 1024
 # 50 Mpc outputs
 ####################################################################
 COMOVING_BOX_SIZE = 50
-#fname = "/mnt/home/llorente/cosmo_bigbox/50Mpc_512/RD0061/RD0061"
-#REDSHIFT = 0
+# fname = "/mnt/home/llorente/cosmo_bigbox/50Mpc_512/RD0135/RD0135"
+# REDSHIFT = 0
 
 # fname = "/mnt/home/llorente/cosmo_bigbox/50Mpc_512/RD0088/RD0088"
 # REDSHIFT = 1
 
-# fname = "/mnt/home/llorente/cosmo_bigbox/50Mpc_512/RD0135/RD0135"
-# REDSHIFT = 2
-
-
+fname = "/mnt/home/llorente/cosmo_bigbox/50Mpc_512/RD0061/RD0061"
+REDSHIFT = 2
 
 
 OUT_FILENAME = f'{COMOVING_BOX_SIZE}Mpc_z{REDSHIFT}_2x2.mp4'

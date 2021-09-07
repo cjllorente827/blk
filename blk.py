@@ -4,14 +4,13 @@ import pickle, inspect, os, hashlib, time
 # whole-ass parameter file
 import blk_config
 
-
 from mpi4py import MPI
 
 
 ######################################################################
 # THIS IS WHERE THE MAGIC HAPPENS
 ######################################################################
-def Do_Query(query_func, *args, 
+def Execute_And_Cache_Result(func, *args, 
     clear_cache=False, 
     run_as_root=False, 
     return_hash=False):
@@ -26,7 +25,7 @@ def Do_Query(query_func, *args,
     argument clear_cache=True to force delete any result found for that 
     query in the cache, then re-run the query function as normal. 
 
-    query_func -- the function that queries the dataset. This must return
+    func -- the function that queries the dataset. This must return
                   the result of the query as some kind of serializable object.
                   It can take any arbitrary positional arguments. 
 
@@ -46,7 +45,7 @@ def Do_Query(query_func, *args,
     root = rank == 0 or run_as_root
 
     # get the hash
-    qhash = get_query_hash(query_func, *args, rank=rank)
+    qhash = get_func_hash(func, *args, rank=rank)
 
 
     # sometimes you wanna clear the cache and start over
@@ -71,7 +70,7 @@ def Do_Query(query_func, *args,
     if root: print(f"No result found for {qhash}. Running query....")
     start = time.time()
 
-    result = query_func(*args)
+    result = func(*args)
 
     query_time = time.time() - start
 
@@ -84,10 +83,10 @@ def Do_Query(query_func, *args,
     else: 
         return None, None
 
-def get_query_hash(query_func, *args, rank=None):
+def get_func_hash(func, *args, rank=None):
 
     # get the source code of the Query function
-    source = inspect.getsource(query_func)
+    source = inspect.getsource(func)
 
     def remove_all_whitespace(str):
         ws_chars = [' ', '\t', '\n']
