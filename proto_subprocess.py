@@ -47,14 +47,14 @@ def Analyze_subprocess(args):
     
     parent_comm.Disconnect()
 
-def Plot_subprocess(track):
+def Plot_subprocess(args):
     
     track_hash = None
     track_hash = parent_comm.scatter(track_hash, root=0)
 
     track, load_time = blk.load_result_from_cache(track_hash)
 
-    user_defined.Plot(track)
+    user_defined.Plot(track, *args)
 
     finished = True
     parent_comm.gather(finished, root=0)

@@ -3,12 +3,12 @@ import sys, time, importlib, datetime, argparse
 
 import blk
 
-def Pipeline(user_defined, 
+def Pipeline(user_module, 
     num_procs=16,
+    iteration=None,
     force_query=False,
     force_analyze=False,
-    do_plot=True,
-    do_final=True):
+    do_plot=True):
     """
     Manages the entire analysis pipeline. By default, this function attempts to 
     create a plot by doing the minimal possible work. I.e. if previous results from
@@ -38,18 +38,28 @@ def Pipeline(user_defined,
     # collects the results of their work
     subprocess = "proto_subprocess.py"
 
-    user_module = importlib.import_module(user_defined)
+    query_args = user_module.QUERY_ARGS \
+            if iteration == None \
+                else user_module.QUERY_ARGS[iteration]
+
+    analyze_args = user_module.ANALYZE_ARGS \
+            if iteration == None \
+                else user_module.ANALYZE_ARGS[iteration]
+
+    plot_args = user_module.PLOT_ARGS \
+            if iteration == None \
+                else user_module.PLOT_ARGS[iteration]
 
     # Special Note: Calling get_query_hash this way does NOT append the 
     # process rank to the hash and therefore will result in a different
     # hash than the rank 0 subprocess returns. This is important as 
     # the null rank hash becomes the name of a file that stores the hashes
     # from all the other processes.
-    query_hash_filename = blk.get_func_hash(user_module.Query, user_module.QUERY_ARGS)
+    query_hash_filename = blk.get_func_hash(user_module.Query, query_args)
 
     # get the track hashes, stored the same way as the query hashes, but these      
     # represent the plot-ready "track" data created by the Analysis stage
-    track_hash_filename = blk.get_func_hash(user_module.Analyze, user_module.ANALYZE_ARGS)  
+    track_hash_filename = blk.get_func_hash(user_module.Analyze, analyze_args)  
 
     # if we're force re-doing the query or analysis then clear out any
     # previous results
@@ -67,7 +77,7 @@ def Pipeline(user_defined,
         # we didn't find query results
         query_hashes = None
     else:
-        print(f"Found query result for \"{user_defined}\" at {query_hash_filename}")
+        print(f"Found query result for \"{user_module.__name__}\" at {query_hash_filename}")
 
     try:
         track_hashes, track_time = blk.load_result_from_cache(track_hash_filename)
@@ -75,7 +85,7 @@ def Pipeline(user_defined,
         # we didn't find a track
         track_hashes = None
     else:
-        print(f"Found track for \"{user_defined}\" at {track_hash_filename}")
+        print(f"Found track for \"{user_module.__name__}\" at {track_hash_filename}")
 
 
     # Figure out how much work we're doing
@@ -87,11 +97,12 @@ def Pipeline(user_defined,
 
     # Define the execution functions for each stage of the pipeline
     def execute_Query(query_hash_filename):
+
         params = {
-            "module_name" : user_defined,
+            "module_name" : user_module.__name__,
             "max_procs"   : num_procs,
             "clear_cache" : force_query,
-            "args"        : user_module.QUERY_ARGS,
+            "args"        : query_args,
             "stage"       : blk.QUERY
         }
 
@@ -113,11 +124,12 @@ def Pipeline(user_defined,
         return query_hashes
 
     def execute_Analyze(query_hashes, track_hash_filename):
+
         params = {
-            "module_name" : user_defined,
+            "module_name" : user_module.__name__,
             "max_procs"   : num_procs,
             "clear_cache" : force_analyze, 
-            "args"        : user_module.ANALYZE_ARGS,
+            "args"        : analyze_args,
             "stage"       : blk.ANALYZE
         }
 
@@ -144,10 +156,10 @@ def Pipeline(user_defined,
     def execute_Plot(track_hashes):
 
         params = {
-            "module_name" : user_defined,
+            "module_name" : user_module.__name__,
             "max_procs"   : num_procs,
             "clear_cache" : False, 
-            "args"        : user_module.PLOT_ARGS,
+            "args"        : plot_args,
             "stage"       : blk.PLOT
         }
 
@@ -181,12 +193,6 @@ def Pipeline(user_defined,
     if do_plot:
         execute_Plot(track_hashes)
 
-    if do_final:
-        print("Finalizing...")
-        user_module.Finalize()
-
-    print("All done")
-
 
 def spawn_comm(subprocess, max_procs, params):
     comm = MPI.COMM_SELF.Spawn(sys.executable, 
@@ -218,6 +224,7 @@ dataset hierarchy parsing operations.
 python blk_pipeline.py [-n <integer>] [-qapf] <user defined python module>    
 
 -n -- number of worker processes to spawn
+-i -- number of iterations
 -q -- force query execution 
 -a -- force analysis execution 
 -p -- force plot creation 
@@ -230,6 +237,8 @@ do as little work as possible to create a plot, i.e. same as setting -pf
 """
     parser = argparse.ArgumentParser(usage=usage, description=desc)
     parser.add_argument('-n', type=int, default=16)
+    parser.add_argument('--start', type=int, default=None)
+    parser.add_argument('--finish', type=int, default=None)
     parser.add_argument('-q', action="store_true", default=False)
     parser.add_argument('-a', action="store_true", default=False)
     parser.add_argument('-p', action="store_true", default=False)
@@ -237,21 +246,51 @@ do as little work as possible to create a plot, i.e. same as setting -pf
     parser.add_argument('user_defined')
     args = vars(parser.parse_args())
 
+    user_module = importlib.import_module(args['user_defined'])
+
     use_default_stages = not(args["q"] or args["a"] or args["p"] or args["f"])
+    start = args["start"]
+    finish = args["finish"]
 
-    start = time.time()
-    if use_default_stages:
-        Pipeline(args["user_defined"], 
-        num_procs=args["n"])
-    else:
-        Pipeline(args["user_defined"], 
-            num_procs=args["n"],
-            force_query=args["q"],
-            force_analyze=args["a"],
-            do_plot=args["p"],
-            do_final=args["f"])
+    do_multiple_iters = start != None and finish != None
+    do_final = use_default_stages or args["f"]
 
-    elapsed = time.time() - start
+    timer_start = time.time()
+
+    if do_multiple_iters:
+
+        if use_default_stages:
+            for i in range(start, finish):
+                print(f"Starting Pipeline iteration {i}")
+                Pipeline(user_module, 
+                    num_procs=args["n"],
+                    iteration=i)
+        else:
+            for i in range(start, finish):
+                print(f"Starting Pipeline iteration {i}")
+                Pipeline(user_module, 
+                    num_procs=args["n"],
+                    iteration=i,
+                    force_query=args["q"],
+                    force_analyze=args["a"],
+                    do_plot=args["p"])
+    
+    else: 
+        if use_default_stages:
+            Pipeline(user_module, 
+            num_procs=args["n"])
+        else:
+            Pipeline(user_module, 
+                num_procs=args["n"],
+                force_query=args["q"],
+                force_analyze=args["a"],
+                do_plot=args["p"])
+
+    if do_final:
+        print("Finalizing...")
+        user_module.Finalize()
+
+    elapsed = time.time() - timer_start
 
     print(f"""
 Total time: {format_time(elapsed)}     
