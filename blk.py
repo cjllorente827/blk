@@ -1,4 +1,4 @@
-import pickle, inspect, os, hashlib, time
+import pickle, inspect, os, hashlib, time, datetime
 
 # feels like cheating but whatever, I'm too lazy to parse a 
 # whole-ass parameter file
@@ -13,7 +13,7 @@ from mpi4py import MPI
 def Execute_And_Cache_Result(func, *args, 
     clear_cache=False, 
     run_as_root=False, 
-    return_hash=False):
+    return_hash=True):
     """
     Attempts to perform a dataset query function with *args passed to that 
     function, but will first check blk_config.CACHE_DIR to see if that query
@@ -56,32 +56,29 @@ def Execute_And_Cache_Result(func, *args,
     # unless specified by the user that they should be run as root
     if root:
         try:
-            result, query_time = load_result_from_cache(qhash)
+            result = load_result_from_cache(qhash)
         except FileNotFoundError as e:
             pass
         else:
             print(f"Found cache result at {qhash}")
             if return_hash:
-                return qhash, query_time
-            return result, query_time
+                return qhash
+            return result
         
 
     # if a cache result was not found, perform the actual query
     if root: print(f"No result found for {qhash}. Running query....")
-    start = time.time()
 
     result = func(*args)
-
-    query_time = time.time() - start
 
     # and then save the result in the cache
     if root:
         save_to_cache(result, qhash)
         if return_hash:
-            return qhash, query_time
-        return result, query_time
+            return qhash
+        return result
     else: 
-        return None, None
+        return None
 
 def get_func_hash(func, *args, rank=None):
 
@@ -120,8 +117,6 @@ def load_result_from_cache(qhash):
     cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
 
     # if we have a previous result, serve that up
-    start = time.time()
-
     try:
         with open(cache_fname, 'rb') as f:
             result = pickle.load(f)
@@ -129,9 +124,8 @@ def load_result_from_cache(qhash):
         print(f"No cache result found for {cache_fname}")
         raise 
     else:
-        load_time = time.time() - start
 
-        return result, load_time
+        return result
 
 
 def save_to_cache(result, qhash):
@@ -149,6 +143,8 @@ def rm_from_cache(qhash):
     except FileNotFoundError as e:
         pass
     
+def format_time(seconds):
+    return str(datetime.timedelta(seconds=seconds))
     
 
 ###############################################################
