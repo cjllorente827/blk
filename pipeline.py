@@ -1,4 +1,4 @@
-import time, os
+import time, os, sys
 from mpi4py import MPI
 import blk.utils
 
@@ -80,51 +80,59 @@ class Stage():
             self.result_id = result_id
 
     def __str__(self):
-        return self.operation.__name__
-    
-    def __repr__(self):
-        dependency_tags = ""
-        for result_id, stage in self.dependencies.items():
-            dependency_tags += stage.tag + "\n    "
+        return f"{self.operation.__name__} {self.arguments[0]}"
 
-        return f"""
-Stage: {self.operation.__name__} 
-arguments: {self.arguments}
-tag: {self.tag}
-depends on: 
-    {dependency_tags}
-        """
+    def __repr__(self):
+        return f"{self.operation.__name__} {self.arguments[0]}"
+    
+#     def __repr__(self):
+#         dependency_tags = ""
+#         for result_id, stage in self.dependencies.items():
+#             dependency_tags += stage.tag + "\n    "
+
+#         return f"""
+# Stage: {self.operation.__name__} 
+# arguments: {self.arguments}
+# tag: {self.tag}
+# depends on: 
+#     {dependency_tags}
+#         """
 
 """
 Runs the stage, saves result to cache if set to AUTO
 """    
-def run(stage, parallelism):
+def run(task, parallelism):
 
-    if len(stage.dependencies) == 0:
-        args = stage.arguments
+    if COMM_SIZE > 1:
+        print(f"Rank {RANK} running task: {task}")
+    else:
+        print(f"Running task: {task}")
+    if len(task.dependencies) == 0:
+        args = task.arguments
 
     else: 
         data_dict = dict()
-        for result_id, stage in stage.dependencies.items():
+        for result_id, stage in task.dependencies.items():
             if stage.result_action == AUTO:
                 data_dict[stage.tag] = blk.utils.load_result_from_cache(result_id)
 
         if len(data_dict) > 0:
-            args = [data_dict, *stage.arguments]
+            args = [data_dict, *task.arguments]
         else:
-            args = stage.arguments
+            args = task.arguments
 
-    data = stage.operation(*args)
+    data = task.operation(*args)
 
     # Figure out if we're saving to file automatically
     # Stage-parallel tasks only save on the root process
-    x = stage.result_action == AUTO 
+    x = task.result_action == AUTO 
     y = parallelism == STAGE
     z = RANK == 0
     do_save =  x and (not y or z)
     if do_save:
-        blk.utils.save_to_cache(data, stage.result_id)
+        blk.utils.save_to_cache(data, task.result_id)
 
+    print(f"Finished {task}")
     return True # finished with no errors
     
     
@@ -144,6 +152,8 @@ COMM = MPI.COMM_WORLD
 COMM_SIZE = COMM.Get_size()
 RANK = COMM.Get_rank()
 
+is_root = RANK == 0
+
 def execute(root_stage, parallelism=NONE):
 
     if parallelism not in PARALLELISM_OPTIONS:
@@ -152,48 +162,69 @@ def execute(root_stage, parallelism=NONE):
 
     start = time.time()
 
-    execution_stack, cache = determine_workload(root_stage)
+    # Only the root process should be determining the workload
+    # The root process is the source of truth for what needs to 
+    # be done and what is finished
+    if RANK == 0:
+        execution_stack, cache = determine_workload(root_stage)
+        execution_stack_size = len(execution_stack)
+    else: 
+        execution_stack_size = 0
+        cache = set()
+
+    execution_stack_size = COMM.bcast(execution_stack_size, root=0)
 
     iterations = 0
-    while len(execution_stack) > 0 and iterations < ITERATION_LIMIT:
+    while execution_stack_size > 0 and iterations < ITERATION_LIMIT:
         iterations += 1
-        task_list = []
 
-        # add the stages whose dependencies are already met to the task list
-        for stage in execution_stack:
-            if all([result_id in cache for result_id in stage.dependencies.keys()]):
-                task_list.append(stage)
-                execution_stack.remove(stage)
+        if RANK == 0:
+            task_list = collect_task_list(execution_stack, cache, 
+                parallelism=parallelism, 
+                num_procs=COMM_SIZE)
+        else: 
+            task_list = None
+            cache = set() # make sure we have an empty cache on non-root processes each loop
 
-        if parallelism == NONE or parallelism == STAGE:
-            for task in task_list:
-                print("Running task:")
-                print(task)
-                success = run(task, parallelism)
-                if success : 
-                    print(f"Finished {str(task)}")
-                    cache.add(task.result_id)
-
+        if parallelism == STAGE:
+            task_list = COMM.bcast(task_list, root=0)
+            
         elif parallelism == TASK:
-            start_index = RANK/COMM_SIZE
-            end_index = (RANK+1)/COMM_SIZE
+            task_list = COMM.scatter(task_list, root=0)
 
-            for task in task_list[start_index, end_index]:
-                print(f"Rank {RANK} Running task:")
-                print(task)
-                success = run(task, parallelism)
-                if success : 
-                    print(f"Finished {str(task)}")
-                    cache.add(task.result_id)
-                else:
-                    print("Task failed")
-                    print(task)
+        for task in task_list:
+            success = run(task, parallelism)
 
-            COMM.Barrier()
+            if success:
+                cache.add(task.result_id)
+            else:
+                # TODO: Probably need a better way to handle this
+                print(f"Task failed: {task}")
+        # end for task
+
+
+        # Gather results from other processes about the tasks they completed
+        # and save them to the cache
+        if parallelism == TASK:
+            all_caches = cache
+            all_caches = COMM.gather(all_caches, root=0)
+
+            if RANK == 0: cache = reduce_cache(all_caches)
+        
+        # Recalculate how much work we have left and broadcast the result to 
+        # the other processes
+        if RANK == 0:
+            execution_stack_size = len(execution_stack)
+        else:
+            execution_stack_size = 0
+        
+        if parallelism == STAGE or parallelism == TASK:
+            execution_stack_size = COMM.bcast(execution_stack_size, root=0)
+
     # end while 
 
     elapsed = time.time() - start
-    print(blk.utils.format_time(elapsed))
+    if RANK == 0: print(blk.utils.format_time(elapsed))
     return True
 
     
@@ -224,13 +255,16 @@ def determine_workload(root):
         # otherwise, we simply save the found result in the
         # results dictionary
         for result_id, stage in current_stage.dependencies.items():
-            if os.path.exists(stage.result_id):
-                cache.add(stage.result_id)
-            else :
+
+            do_stage = stage.force_execute or \
+                not blk.utils.exists_in_cache(stage.result_id)
+
+            if do_stage:
                 traversal_queue.append(stage)
                 execution_stack.append(stage)
-
-
+            else :
+                cache.add(stage.result_id)
+                
         traversal_queue.remove(current_stage)
     # end while 
 
@@ -238,10 +272,29 @@ def determine_workload(root):
 
             
 
+def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
+    task_list = [ [] for i in range(num_procs) ]
+
+    all_tasks = []
+    for stage in execution_stack:
+        if all([result_id in cache for result_id in stage.dependencies.keys()]):
+            all_tasks.append(stage)
+            execution_stack.remove(stage)
+
+    iterations = 0
+    while len(all_tasks) > 0 and iterations < ITERATION_LIMIT:
+        task_list[iterations % num_procs].append(all_tasks.pop())
+        iterations += 1
+
+    return task_list if num_procs > 1 else task_list[0]
 
 
+def reduce_cache(cache_list):
 
-        
+    cache = set()
+    for c in cache_list:
+        cache = cache | c
+    return cache
 
         
 

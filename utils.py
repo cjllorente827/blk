@@ -34,13 +34,23 @@ def get_func_hash(func, *args, rank=None):
     qhash = hashlib.md5(target.encode()).hexdigest()
     return qhash
 
+def exists_in_cache(qhash):
+    cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
+
+    cache_hit = os.path.exists(cache_fname)
+    if cache_hit:
+        print(f"Found cache result for {qhash}")
+    else:
+        print(f"No cache result found for {cache_fname}")
+    return cache_hit 
+
 def load_result_from_cache(qhash):
     cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
 
     # if we have a previous result, serve that up
     try:
         with open(cache_fname, 'rb') as f:
-            print(f"Found cache result at {qhash}")
+            print(f"Found cache result for {qhash}")
             result = pickle.load(f)
     except FileNotFoundError as e:
         print(f"No cache result found for {cache_fname}")
@@ -69,5 +79,5 @@ def format_time(seconds):
 
 def movie(plot_file_format, movie_filename):
     print("Running conversion to mp4 format...")
-    cmd = f"ffmpeg -y -start_number 0 -framerate 5 -i {plot_file_format} -s 1440x1080 -r 30 -vcodec libx264 -pix_fmt yuv420p {movie_filename}"
+    cmd = f"ffmpeg -y -start_number 0 -framerate 10 -i {plot_file_format} -s 1440x1080 -vcodec libx264 -pix_fmt yuv420p {movie_filename}"
     subprocess.run(cmd, shell=True)
