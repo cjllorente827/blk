@@ -1,4 +1,4 @@
-import time, os, sys
+import time, os, sys, argparse
 from mpi4py import MPI
 import blk.utils
 
@@ -9,6 +9,8 @@ AUTO, MANUAL = ACTION_OPTIONS
 # enumerate possible values for parallelism
 PARALLELISM_OPTIONS = ["none", "task", "stage"]
 NONE, TASK, STAGE = PARALLELISM_OPTIONS
+
+DEBUG = False
 
 class Stage():
 
@@ -50,6 +52,9 @@ class Stage():
 
     force_execute  --   If set to True, this Stage will execute regardless if a previous 
                         result exists
+
+    run_only_on_root -- Only use if running using Stage parallelism. This setting is ignored
+                        otherwise. Ensures this stage runs serially on the root process only.
     """
 
     def __init__(self, 
@@ -58,7 +63,8 @@ class Stage():
         tag="root",
         depends_on=[], 
         result_action=AUTO,
-        result_id=None, 
+        result_id=None,
+        run_only_on_root=False, 
         force_execute=False):
 
         self.operation = operation
@@ -66,6 +72,7 @@ class Stage():
         self.result_action = result_action
         self.force_execute = force_execute
         self.tag = tag
+        self.run_only_on_root = run_only_on_root
         
         self.dependencies = dict()
         for stage in depends_on:
@@ -83,7 +90,7 @@ class Stage():
         return f"{self.operation.__name__} {self.arguments[0]}"
 
     def __repr__(self):
-        return f"{self.operation.__name__} {self.arguments[0]}"
+        return str(self)
     
 #     def __repr__(self):
 #         dependency_tags = ""
@@ -103,10 +110,13 @@ Runs the stage, saves result to cache if set to AUTO
 """    
 def run(task, parallelism):
 
+    if parallelism == STAGE and task.run_only_on_root and RANK != 0:
+        return True
+
     if COMM_SIZE > 1:
-        print(f"Rank {RANK} running task: {task}")
+        if DEBUG: print(f"Rank {RANK} running task: {task}")
     else:
-        print(f"Running task: {task}")
+        if DEBUG: print(f"Running task: {task}")
     if len(task.dependencies) == 0:
         args = task.arguments
 
@@ -132,7 +142,7 @@ def run(task, parallelism):
     if do_save:
         blk.utils.save_to_cache(data, task.result_id)
 
-    print(f"Finished {task}")
+    if DEBUG: print(f"Finished {task}")
     return True # finished with no errors
     
     
@@ -152,9 +162,15 @@ COMM = MPI.COMM_WORLD
 COMM_SIZE = COMM.Get_size()
 RANK = COMM.Get_rank()
 
-is_root = RANK == 0
-
 def execute(root_stage, parallelism=NONE):
+
+    global DEBUG
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', action="store_true", default=False)
+    
+    args = vars(parser.parse_args())
+    DEBUG = args["d"]
+    
 
     if parallelism not in PARALLELISM_OPTIONS:
         print(f"Invalid option for parallelism: {parallelism}")
@@ -257,7 +273,8 @@ def determine_workload(root):
         for result_id, stage in current_stage.dependencies.items():
 
             do_stage = stage.force_execute or \
-                not blk.utils.exists_in_cache(stage.result_id)
+                (not blk.utils.exists_in_cache(stage) and \
+                not os.path.exists(stage.result_id))
 
             if do_stage:
                 traversal_queue.append(stage)
@@ -273,20 +290,46 @@ def determine_workload(root):
             
 
 def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
-    task_list = [ [] for i in range(num_procs) ]
 
-    all_tasks = []
-    for stage in execution_stack:
-        if all([result_id in cache for result_id in stage.dependencies.keys()]):
-            all_tasks.append(stage)
-            execution_stack.remove(stage)
+    if parallelism == NONE or parallelism == STAGE:
+        task_list = []
 
-    iterations = 0
-    while len(all_tasks) > 0 and iterations < ITERATION_LIMIT:
-        task_list[iterations % num_procs].append(all_tasks.pop())
-        iterations += 1
+        for stage in execution_stack:
+            if dependencies_are_met(stage, cache):
+                task_list.append(stage)
+                execution_stack.remove(stage)
 
-    return task_list if num_procs > 1 else task_list[0]
+        if DEBUG:
+            print("Current task list:")
+            for task in task_list:
+                print(task)
+        return task_list
+    
+    elif parallelism == TASK:
+
+        task_list = [ [] for i in range(num_procs) ]
+
+        all_tasks = []
+        for stage in execution_stack:
+            if dependencies_are_met(stage, cache):
+                all_tasks.append(stage)
+                execution_stack.remove(stage)
+
+        iterations = 0
+        while len(all_tasks) > 0 and iterations < ITERATION_LIMIT:
+            task_list[iterations % num_procs].append(all_tasks.pop())
+            iterations += 1
+
+        return task_list
+    return None
+
+
+def dependencies_are_met(stage, cache):
+    all_met = all([result_id in cache for result_id in stage.dependencies.keys()])
+
+    if all_met and DEBUG: print(f"All dependencies met for {stage}")
+
+    return all_met
 
 
 def reduce_cache(cache_list):
@@ -295,6 +338,7 @@ def reduce_cache(cache_list):
     for c in cache_list:
         cache = cache | c
     return cache
+
 
         
 
