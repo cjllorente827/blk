@@ -1,5 +1,5 @@
 import pickle, inspect, os, hashlib, datetime, subprocess
-from blk import blk_config
+from blk import config
 
 def get_func_hash(func, *args, rank=None):
 
@@ -35,7 +35,7 @@ def get_func_hash(func, *args, rank=None):
     return qhash
 
 def exists_in_cache(stage):
-    cache_fname = os.path.join(blk_config.CACHE_DIR, stage.result_id)
+    cache_fname = os.path.join(config.CACHE_DIR, stage.result_id)
 
     cache_hit = os.path.exists(cache_fname)
     if cache_hit:
@@ -45,7 +45,7 @@ def exists_in_cache(stage):
     return cache_hit 
 
 def load_result_from_cache(qhash):
-    cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
+    cache_fname = os.path.join(config.CACHE_DIR, qhash)
 
     # if we have a previous result, serve that up
     try:
@@ -60,7 +60,7 @@ def load_result_from_cache(qhash):
 
 
 def save_to_cache(result, qhash):
-    cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
+    cache_fname = os.path.join(config.CACHE_DIR, qhash)
     print(f"Saving result to file {cache_fname}")
     
     with open(cache_fname, 'wb') as f:
@@ -68,7 +68,7 @@ def save_to_cache(result, qhash):
 
 
 def rm_from_cache(qhash):
-    cache_fname = os.path.join(blk_config.CACHE_DIR, qhash)
+    cache_fname = os.path.join(config.CACHE_DIR, qhash)
     try: 
         os.remove(cache_fname)
     except FileNotFoundError as e:

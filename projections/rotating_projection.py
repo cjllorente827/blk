@@ -8,13 +8,44 @@ import numpy as np
 plt.style.use("publication")
 yt.set_log_level(40)
 
+Rx = lambda tht: np.array([
+        [1, 0, 0],
+        [0, np.cos(tht), -np.sin(tht)],
+        [0, np.sin(tht), np.cos(tht)]
+    ])
+
+Ry = lambda tht: np.array([
+        [np.cos(tht), 0, np.sin(tht)],
+        [0, 1, 0],
+        [-np.sin(tht), 0, np.cos(tht)]
+    ])
+
+Rz = lambda tht: np.array([
+        [np.cos(tht), -np.sin(tht), 0],
+        [np.sin(tht), np.cos(tht), 0],
+        [0, 0, 1]
+    ])
+
+Rotation_Matrix = {
+    "x": Rx,
+    "y": Ry,
+    "z": Rz
+}
+
 def projection(  dataset, 
             field, 
-            projection_axis,
             box_origin, 
             box_length, 
             img_res, 
-            field_units):
+            field_units,
+            start_vector,
+            rotation_axis,
+            rotation_angle):
+
+
+    if rotation_axis not in Rotation_Matrix.keys():
+        print(f"Invalid rotation axis: {rotation_axis}")
+        return
 
     ds = yt.load(dataset)
 
@@ -22,33 +53,7 @@ def projection(  dataset,
     dl = box_length*1.1 # include a small buffer around the box to avoid deadzones in the plot
     box = ds.r[x:x+dl, y:y+dl, z:z+dl]
 
-    proj = yt.OffAxisProjectionPlot(ds, projection_axis, field, 
-        weight_field=field, 
-        data_source=box,
-        center=box_origin + 0.5 * box_length,
-        buff_size=(img_res, img_res),
-        width=box_length)
-
-    result = np.array(proj.frb[field].to(field_units).value)
-
-    return result
-
-# A stage parallel version of the projection function
-def projection_parallel(  dataset, 
-            field, 
-            projection_axis,
-            box_origin, 
-            box_length, 
-            img_res, 
-            field_units):
-
-    yt.enable_parallelism()
-
-    ds = yt.load(dataset)
-
-    x,y,z = box_origin
-    dl = box_length*1.1 # include a small buffer around the box to avoid deadzones in the plot
-    box = ds.r[x:x+dl, y:y+dl, z:z+dl]
+    projection_axis = Rotation_Matrix[rotation_axis](rotation_angle) @ start_vector
 
     proj = yt.OffAxisProjectionPlot(ds, projection_axis, field, 
         weight_field=field, 
@@ -68,6 +73,7 @@ def plot(   data,
             box_length, 
             zlims, 
             axes_units,
+            cmap,
             plot_filename):
 
 
@@ -88,7 +94,7 @@ def plot(   data,
     X,Y = np.meshgrid(x,y)
     
     im = ax.pcolormesh(X, Y, data["projection"], 
-        cmap='viridis', 
+        cmap=cmap, 
         norm=LogNorm(vmin=zlims[0], vmax=zlims[1]))
         
     divider = make_axes_locatable(ax)

@@ -5,56 +5,30 @@ import matplotlib.colors as mcolors
 import numpy as np
 from mpi4py import MPI
 
-yt.funcs.mylog.setLevel(50)
 
-plt.style.use("publication")
+def gather_Trho_parallel(dataset):
 
-OUT_DIR = "/mnt/home/llorente/comp_structure_research/research_notes/imgs"
-TEMP_DIR = f"{OUT_DIR}/temp"
 
-# fname = '/mnt/research/galaxies-REU/sims/cosmological/set1_LR/halo_008508/RD0042/RD0042'
-
-# fname = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0265/RD0265"
-# PLOT_TITLE = r"25 Mpc box at $z = 0$"
-# PLOT_FNAME = "25Mpc_phase_z0"
-
-# fname = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0166/RD0166"
-# PLOT_TITLE = r"25 Mpc box at $z = 1$"
-# PLOT_FNAME = "25Mpc_phase_z1"
-
-fname = "/mnt/home/llorente/cosmo_bigbox/25Mpc_512/RD0111/RD0111"
-PLOT_TITLE = r"25 Mpc box at $z = 2$"
-PLOT_FNAME = "25Mpc_phase_z2"
-
-QUERY_ARGS = [fname]
-ANALYZE_ARGS = [fname]
-PLOT_ARGS = []
-
-def Query(dataset):
+    # TODO: Need to test this to see if yt actually grabs everythign in parallel
+    yt.enable_parallelism()
 
     comm = MPI.COMM_WORLD
 
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-    yt.funcs.mylog.setLevel(50)
-
     ds = yt.load(dataset)
-
-    ad = ds.r[rank/size:(rank+1)/size,:,:]
+    ad = ds.all_data()
 
     logT = np.log10(ad["temperature"].to('K'))
     logrho = np.log10(ad["density"].to('g/cm**3'))
     mass = np.array(ad[('gas', 'mass')].to('Msun'))
 
-    # quick check to ensure all our data has the same size
-    assert len(logrho) == len(logT) and len(logrho) == len(mass)
-
     data = [logT, logrho, mass]
 
     return data
 
-def Analyze(data, dataset_name):
+def bin_Trho_parallel(data, dataset_name):
 
     comm = MPI.COMM_WORLD
 
@@ -96,7 +70,7 @@ def Analyze(data, dataset_name):
 
     return data
 
-def Plot(track):
+def plot(track):
 
     comm = MPI.COMM_WORLD
 

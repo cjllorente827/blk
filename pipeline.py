@@ -10,7 +10,12 @@ AUTO, MANUAL = ACTION_OPTIONS
 PARALLELISM_OPTIONS = ["none", "task", "stage"]
 NONE, TASK, STAGE = PARALLELISM_OPTIONS
 
+TASK_STATUS_OPTIONS = ["complete", "skipped", "failed"]
+COMPLETE, SKIP, FAIL = TASK_STATUS_OPTIONS
+
+
 DEBUG = False
+DRYRUN = False
 
 class Stage():
 
@@ -111,12 +116,15 @@ Runs the stage, saves result to cache if set to AUTO
 def run(task, parallelism):
 
     if parallelism == STAGE and task.run_only_on_root and RANK != 0:
-        return True
+        return SKIP
 
     if COMM_SIZE > 1:
         if DEBUG: print(f"Rank {RANK} running task: {task}")
     else:
         if DEBUG: print(f"Running task: {task}")
+
+    if DRYRUN: return COMPLETE
+
     if len(task.dependencies) == 0:
         args = task.arguments
 
@@ -140,10 +148,11 @@ def run(task, parallelism):
     z = RANK == 0
     do_save =  x and (not y or z)
     if do_save:
+        if DEBUG: print(f"Saved results of {task} to file with id: {task.result_id}")
         blk.utils.save_to_cache(data, task.result_id)
 
     if DEBUG: print(f"Finished {task}")
-    return True # finished with no errors
+    return COMPLETE # finished with no errors
     
     
 
@@ -164,12 +173,14 @@ RANK = COMM.Get_rank()
 
 def execute(root_stage, parallelism=NONE):
 
-    global DEBUG
+    global DEBUG, DRYRUN
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', action="store_true", default=False)
+    parser.add_argument('-y', action="store_true", default=False)
     
     args = vars(parser.parse_args())
-    DEBUG = args["d"]
+    DEBUG = args["d"] or args["y"]
+    DRYRUN = args["y"]
     
 
     if parallelism not in PARALLELISM_OPTIONS:
@@ -198,6 +209,18 @@ def execute(root_stage, parallelism=NONE):
             task_list = collect_task_list(execution_stack, cache, 
                 parallelism=parallelism, 
                 num_procs=COMM_SIZE)
+
+            if DEBUG:
+                if parallelism == TASK:   
+                    print(f"\nIteration {iterations} task list:")
+                    for i, tl in enumerate(task_list):
+                        print(f"\n\tRank {i}")
+                        for task in tl:
+                            print(f"\t{task}")
+                else: 
+                    for task in task_list: print(f"\t{task}")
+
+
         else: 
             task_list = None
             cache = set() # make sure we have an empty cache on non-root processes each loop
@@ -209,12 +232,15 @@ def execute(root_stage, parallelism=NONE):
             task_list = COMM.scatter(task_list, root=0)
 
         for task in task_list:
-            success = run(task, parallelism)
 
-            if success:
+            # Actually run the task
+            task_status = run(task, parallelism)
+
+            if task_status == COMPLETE:
                 cache.add(task.result_id)
-            else:
-                # TODO: Probably need a better way to handle this
+            elif task_status == SKIP:
+                if DEBUG: print(f"Rank {RANK} skipped task {task}")
+            elif task_status == FAIL:
                 print(f"Task failed: {task}")
         # end for task
 
@@ -230,6 +256,12 @@ def execute(root_stage, parallelism=NONE):
         # Recalculate how much work we have left and broadcast the result to 
         # the other processes
         if RANK == 0:
+            new_execution_stack = []
+            for task in execution_stack:
+                if task.result_id not in cache:
+                    new_execution_stack.append(task)
+
+            execution_stack = new_execution_stack
             execution_stack_size = len(execution_stack)
         else:
             execution_stack_size = 0
@@ -239,8 +271,8 @@ def execute(root_stage, parallelism=NONE):
 
     # end while 
 
-    elapsed = time.time() - start
-    if RANK == 0: print(blk.utils.format_time(elapsed))
+    runtime = blk.utils.format_time(time.time() - start)
+    if RANK == 0: print(f"Total runtime: {runtime}")
     return True
 
     
@@ -297,12 +329,6 @@ def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
         for stage in execution_stack:
             if dependencies_are_met(stage, cache):
                 task_list.append(stage)
-                execution_stack.remove(stage)
-
-        if DEBUG:
-            print("Current task list:")
-            for task in task_list:
-                print(task)
         return task_list
     
     elif parallelism == TASK:
@@ -313,7 +339,6 @@ def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
         for stage in execution_stack:
             if dependencies_are_met(stage, cache):
                 all_tasks.append(stage)
-                execution_stack.remove(stage)
 
         iterations = 0
         while len(all_tasks) > 0 and iterations < ITERATION_LIMIT:
@@ -327,7 +352,10 @@ def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
 def dependencies_are_met(stage, cache):
     all_met = all([result_id in cache for result_id in stage.dependencies.keys()])
 
-    if all_met and DEBUG: print(f"All dependencies met for {stage}")
+    if DEBUG and all_met: 
+        print(f"All dependencies met for {stage}")
+    elif DEBUG: 
+        print(f"Waiting on dependencies for {stage}")
 
     return all_met
 
