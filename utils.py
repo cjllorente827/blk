@@ -38,10 +38,10 @@ def exists_in_cache(stage):
     cache_fname = os.path.join(config.CACHE_DIR, stage.result_id)
 
     cache_hit = os.path.exists(cache_fname)
-    if cache_hit:
-        print(f"Found cache result for {stage}")
-    else:
-        print(f"No cache result found for {stage}")
+    # if cache_hit:
+    #     print(f"Found cache result for {stage}")
+    # else:
+    #     print(f"No cache result found for {stage}")
     return cache_hit 
 
 def load_result_from_cache(qhash):
@@ -50,10 +50,10 @@ def load_result_from_cache(qhash):
     # if we have a previous result, serve that up
     try:
         with open(cache_fname, 'rb') as f:
-            print(f"Found cache result for {qhash}")
+            #print(f"Found cache result for {qhash}")
             result = pickle.load(f)
     except FileNotFoundError as e:
-        print(f"No cache result found for {cache_fname}")
+        #print(f"No cache result found for {cache_fname}")
         raise 
     else:
         return result
@@ -61,7 +61,7 @@ def load_result_from_cache(qhash):
 
 def save_to_cache(result, qhash):
     cache_fname = os.path.join(config.CACHE_DIR, qhash)
-    print(f"Saving result to file {cache_fname}")
+    #print(f"Saving result to file {cache_fname}")
     
     with open(cache_fname, 'wb') as f:
         pickle.dump(result, f, protocol=0)
