@@ -1,6 +1,7 @@
 
 import yt
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import AxesGrid, make_axes_locatable
 import numpy as np
@@ -34,7 +35,7 @@ Rotation_Matrix = {
 
 def projection(  dataset, 
             field, 
-            box_origin, 
+            box_center, 
             box_length, 
             img_res, 
             field_units,
@@ -49,8 +50,9 @@ def projection(  dataset,
 
     ds = yt.load(dataset)
 
-    x,y,z = box_origin
-    dl = box_length*1.1 # include a small buffer around the box to avoid deadzones in the plot
+    # include a small buffer around the box to avoid deadzones in the plot
+    dl = box_length*1.2 
+    x,y,z = box_center - dl / 2  * np.ones(3)
     box = ds.r[x:x+dl, y:y+dl, z:z+dl]
 
     projection_axis = Rotation_Matrix[rotation_axis](rotation_angle) @ start_vector
@@ -58,7 +60,8 @@ def projection(  dataset,
     proj = yt.OffAxisProjectionPlot(ds, projection_axis, field, 
         weight_field=field, 
         data_source=box,
-        center=box_origin + 0.5 * box_length,
+        north_vector=(0, 0, 1.),
+        center=box_center,
         buff_size=(img_res, img_res),
         width=box_length)
 
@@ -68,7 +71,7 @@ def projection(  dataset,
 
 def plot(   data, 
             dataset, 
-            field, 
+            field_label, 
             img_res, 
             box_length, 
             zlims, 
@@ -87,7 +90,7 @@ def plot(   data,
         bottom = 0.1,
         top = 0.9)
 
-    # Fix the x and y axes
+    # Apply correct units to the x and y axes
     L = box_length*comoving_box_size/2
     x = np.linspace(-L, L, img_res+1, endpoint=True)
     y = np.linspace(-L, L, img_res+1, endpoint=True)
@@ -97,10 +100,11 @@ def plot(   data,
         cmap=cmap, 
         norm=LogNorm(vmin=zlims[0], vmax=zlims[1]))
         
+    # this is the only way to make a colorbar look good
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = fig.colorbar(im, cax=cax)
-    cbar.set_label(field)
+    cbar.set_label(field_label)
     
     ax.set_xlabel(f'x\n({axes_units})')
     ax.set_ylabel(f'y\n({axes_units})')  

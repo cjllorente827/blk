@@ -1,7 +1,7 @@
-import pickle, inspect, os, hashlib, datetime, subprocess
+import pickle, inspect, os, hashlib, datetime, subprocess, sys
 from blk import config
 
-def get_func_hash(func, *args, rank=None):
+def get_func_hash(func, args):
 
     # get the source code of the Query function
     source = inspect.getsource(func)
@@ -23,12 +23,6 @@ def get_func_hash(func, *args, rank=None):
 
     # concatenate it with the arguments
     target = append_args(source_no_ws, args)
-
-    # add the rank if not None, i.e. the pipeline dispatcher
-    # process needs to save something
-    # running Do_Query by itself adds rank=0 by default
-    if rank is not None:
-        target += str(rank)
 
     # convert string to a hash
     qhash = hashlib.md5(target.encode()).hexdigest()
@@ -85,16 +79,34 @@ def movie(movie_filename, plot_file_format):
 
 def create_package(stage):
 
+    package = stage.tag
+    package_cache = os.path.join(package, "cache")
     try:
-        os.mkdir(stage.tag)
+        os.mkdir(package)
+        os.mkdir(package_cache)
+        print(f"mkdir {package}")
     except FileExistsError as e:
-        print("Directory {stage.tag} already exists. Please remove and try again.")
+        print(f"Directory {stage.tag} already exists. Please remove and try again.")
         return
 
-    for task in stage.dependencies:
-        file_name = os.path.join(config.CACHE_DIR, task.result_id)
-        package_name = os.path.join(stage.tag, task.result_id)
+
+    # Add in the code file that gets run
+    code_file = sys.argv[0]
+    cmd = f"cp {code_file} {os.path.join(package, code_file)}"
+    print(cmd)
+    os.system(cmd)
+
+    for result_id in stage.dependencies.keys():
+        file_name = os.path.join(config.CACHE_DIR, result_id)
+        package_name = os.path.join(package_cache, result_id)
         cmd = f"cp {file_name} {package_name}"
 
         print(cmd)
-        #os.system(cmd)
+        os.system(cmd)
+
+    cmd = f"tar cvzf {package}.tar.gz {package}"
+    print(cmd)
+    os.system(cmd)
+
+def set_cache(dirname):
+    config.CACHE_DIR = dirname
