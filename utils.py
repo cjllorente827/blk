@@ -81,3 +81,20 @@ def movie(movie_filename, plot_file_format):
     print("Running conversion to mp4 format...")
     cmd = f"ffmpeg -y -start_number 0 -framerate 10 -i {plot_file_format} -s 1440x1080 -vcodec libx264 -pix_fmt yuv420p {movie_filename}"
     subprocess.run(cmd, shell=True)
+
+
+def create_package(stage):
+
+    try:
+        os.mkdir(stage.tag)
+    except FileExistsError as e:
+        print("Directory {stage.tag} already exists. Please remove and try again.")
+        return
+
+    for task in stage.dependencies:
+        file_name = os.path.join(config.CACHE_DIR, task.result_id)
+        package_name = os.path.join(stage.tag, task.result_id)
+        cmd = f"cp {file_name} {package_name}"
+
+        print(cmd)
+        #os.system(cmd)
