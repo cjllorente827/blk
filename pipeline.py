@@ -178,7 +178,7 @@ def execute(root_stage, parallelism=NONE):
     parser.add_argument('-d', action="store_true", default=False)
     parser.add_argument('-y', action="store_true", default=False)
     
-    args = vars(parser.parse_args())
+    args, unknown = parser.parse_known_args()
     DEBUG = args["d"] or args["y"]
     DRYRUN = args["y"]
     
