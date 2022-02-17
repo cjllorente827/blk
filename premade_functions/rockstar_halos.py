@@ -88,7 +88,8 @@ def get_halo_from_catalog_by_id(hc_fname, target_id, box_length):
                 Rvir[i]/1000/box_length, 
                 X[i]/box_length, 
                 Y[i]/box_length, 
-                Z[i]/box_length)
+                Z[i]/box_length,
+                hc_fname)
 
     print(f"No halo found with id {target_id}")
     return None
