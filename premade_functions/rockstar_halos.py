@@ -6,7 +6,7 @@ from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import AxesGrid, make_axes_locatable
 import numpy as np
 
-plt.style.use("publication")
+# plt.style.use("publication")
 yt.set_log_level(40)
 
 class HaloData:
