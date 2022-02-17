@@ -23,6 +23,7 @@ def get_func_hash(func, args):
 
     # concatenate it with the arguments
     target = append_args(source_no_ws, args)
+    
 
     # convert string to a hash
     qhash = hashlib.md5(target.encode()).hexdigest()
@@ -77,36 +78,40 @@ def movie(movie_filename, plot_file_format):
     subprocess.run(cmd, shell=True)
 
 
-def create_package(stage):
+def create_package(package_name, stages):
 
-    package = stage.tag
-    package_cache = os.path.join(package, "cache")
+
+    package_cache = os.path.join(package_name, "cache")
     try:
-        os.mkdir(package)
+        print(f"mkdir {package_name}")
+        os.mkdir(package_name)
+        print(f"mkdir {package_cache}")
         os.mkdir(package_cache)
-        print(f"mkdir {package}")
     except FileExistsError as e:
-        print(f"Directory {stage.tag} already exists. Please remove and try again.")
+        print(f"Directory {package_name} already exists. Please remove and try again.")
         return
-
 
     # Add in the code file that gets run
     code_file = sys.argv[0]
-    cmd = f"cp {code_file} {os.path.join(package, code_file)}"
+    cmd = f"cp {code_file} {os.path.join(package_name, code_file)}"
     print(cmd)
     os.system(cmd)
 
-    for result_id in stage.dependencies.keys():
-        file_name = os.path.join(config.CACHE_DIR, result_id)
-        package_name = os.path.join(package_cache, result_id)
-        cmd = f"cp {file_name} {package_name}"
+    for stage in stages:
+        
+        file_name = os.path.join(config.CACHE_DIR, stage.result_id)
+        package_loc = os.path.join(package_cache, stage.tag)
+        cmd = f"cp {file_name} {package_loc}"
 
         print(cmd)
         os.system(cmd)
 
-    cmd = f"tar cvzf {package}.tar.gz {package}"
+    cmd = f"tar cvzf {package_name}.tar.gz {package_name}"
     print(cmd)
     os.system(cmd)
 
 def set_cache(dirname):
     config.CACHE_DIR = dirname
+
+def noop():
+    pass

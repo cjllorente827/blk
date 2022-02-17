@@ -11,17 +11,29 @@ yt.set_log_level(40)
 
 class HaloData:
 
-    def __init__(self, id, Mvir, Rvir, X, Y, Z):
+    def __init__(self, id, Mvir, Rvir, X, Y, Z, catalog_fname):
         self.id = int(id)
         self.Mvir = Mvir
         self.Rvir = Rvir
         self.X = X
         self.Y = Y
         self.Z = Z
+        self.catalog_fname = catalog_fname
 
     def __str__(self):
         return f"Halo {self.id}"
 
+
+
+class Particle:
+
+    def __init__(self, id, particle_type, mass, X, Y, Z):
+        self.id = int(id)
+        self.mass = mass
+        self.particle_type = particle_type
+        self.X = X
+        self.Y = Y
+        self.Z = Z
 
 ##############################################################################
 # Returns all halos in the ascii catalog in a dictionary indexed by the 
@@ -48,9 +60,101 @@ def get_halo_data_from_catalog(hc_fname, box_length):
             Rvir[i]/1000/box_length, 
             X[i]/box_length, 
             Y[i]/box_length, 
-            Z[i]/box_length)
+            Z[i]/box_length,
+            hc_fname)
 
     return result
+
+
+def get_halo_from_catalog_by_id(hc_fname, target_id, box_length):
+    # Units: Masses in Msun / h
+    # Units: Radii in kpc / h (comoving)
+    # Units: Positions in Mpc / h (comoving)
+    #
+    # Distances will be returned in code units, i.e. 
+    # floating point numbers from 0 to 1, where 1
+    # represents the full length of the box
+
+    ids, DescID, Mvir, Vmax, Vrms, Rvir, Rs, Np, X, Y, Z, *other = np.genfromtxt(hc_fname,
+        skip_header=1,
+        unpack=True)
+
+    result = None
+    for i, halo_id in enumerate(ids):
+        if halo_id == target_id:
+            return HaloData(
+                ids[i], 
+                Mvir[i], 
+                Rvir[i]/1000/box_length, 
+                X[i]/box_length, 
+                Y[i]/box_length, 
+                Z[i]/box_length)
+
+    print(f"No halo found with id {target_id}")
+    return None
+
+def get_halos_filtered_by(hc_fname, box_length, filter_func):
+    # Units: Masses in Msun / h
+    # Units: Radii in kpc / h (comoving)
+    # Units: Positions in Mpc / h (comoving)
+    #
+    # Distances will be returned in code units, i.e. 
+    # floating point numbers from 0 to 1, where 1
+    # represents the full length of the box
+
+    ids, DescID, Mvir, Vmax, Vrms, Rvir, Rs, Np, X, Y, Z, *other = np.genfromtxt(hc_fname,
+        skip_header=1,
+        unpack=True)
+
+    result = {}
+    for i, halo_id in enumerate(ids):
+        new_halo = HaloData(
+            ids[i], 
+            Mvir[i], 
+            Rvir[i]/1000/box_length, 
+            X[i]/box_length, 
+            Y[i]/box_length, 
+            Z[i]/box_length,
+            hc_fname)
+
+        if filter_func(new_halo):
+            result[halo_id] = new_halo
+
+    return result
+
+
+# Returns true if the halo is within 1 virial radius of a larger halo
+# in the same catalog
+def is_subhalo(all_halos, target_halo):
+    
+    for halo_id, halo in all_halos.items():
+        if halo_id == target_halo.id:
+            continue
+
+        if halo.Mvir > target_halo.Mvir:
+            
+            r1 = np.array([
+                target_halo.X,
+                target_halo.Y,
+                target_halo.Z
+            ])
+
+            r2 = np.array([
+                halo.X,
+                halo.Y,
+                halo.Z
+            ]) 
+
+            distance = np.linalg.norm(r1-r2)
+            
+
+            if distance < halo.Rvir:
+                return True
+
+    # end for halo in all_halos
+    return False
+
+
 
 def calculate_extra_halo_quantities(dataset, halo):
     ds = yt.load(dataset)
@@ -143,3 +247,49 @@ bar ({6:2e},{7:2e},{8:2e})""".format(*com, *dm, *bar)
     
     plt.savefig(plot_filename)
     plt.close()
+
+def get_particles_in_halo(dataset, 
+    halo_position,
+    halo_radius):
+    
+    ds = yt.load(dataset)
+    sp = ds.sphere(
+        (halo_position[0],halo_position[1],halo_position[2]), 
+        halo_radius
+    )
+
+    particle_type = np.array(sp[('all', 'particle_type')], dtype=int)
+    dm_only = [t == 1 for t in particle_type]
+
+    particle_data = {}
+    particle_data["index"] = np.array(sp[('all', 'particle_index')], dtype=int)[dm_only]
+    # particle_data["type"]    = np.array(sp[('all', 'particle_type')], dtype=int)[dm_only]
+    # particle_data["mass"]  = np.array(sp[('all', 'particle_mass')].to('Msun'))[dm_only]
+    particle_data["x"]  = np.array(sp[('all', 'particle_position_x')])[dm_only]
+    particle_data["y"]  = np.array(sp[('all', 'particle_position_y')])[dm_only]
+    particle_data["z"]  = np.array(sp[('all', 'particle_position_z')])[dm_only]
+    
+    return particle_data
+
+
+def get_particles_by_id(data, dataset):
+    
+    ds = yt.load(dataset)
+    ad = ds.all_data()
+
+    for k,v in data.items():
+        particles = v
+    particle_ids = particles["index"]
+
+    all_particles = np.array(ad[('all', 'particle_index')], dtype=int)
+    array_mask = [np.where(all_particles == p)[0][0] for p in particle_ids]
+
+    particle_data = {}
+    particle_data["index"] = np.array(ad[('all', 'particle_index')], dtype=int)[array_mask]
+    # particle_data["type"]    = np.array(ad[('all', 'particle_type')], dtype=int)[array_mask]
+    # particle_data["mass"]  = np.array(ad[('all', 'particle_mass')].to('Msun'))[array_mask]
+    particle_data["x"]  = np.array(ad[('all', 'particle_position_x')])[array_mask]
+    particle_data["y"]  = np.array(ad[('all', 'particle_position_y')])[array_mask]
+    particle_data["z"]  = np.array(ad[('all', 'particle_position_z')])[array_mask]
+
+    return particle_data

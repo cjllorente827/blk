@@ -33,7 +33,7 @@ class Stage():
                     a final analysis product, i.e. a plot. 
 
     arguments --    List of arguments passed to the operation function. These arguments get
-                    included in the hash if this stage's result_id_type is HASH. Other arguments 
+                    included in the hash if this stage's result_action is "auto". Other arguments 
                     to the function, i.e. those from dependencies, do not get included
                     in the hash. 
 
@@ -49,11 +49,11 @@ class Stage():
                         the data and placing it in the cache, or "manual" if the operation itself
                         will handle the creation of any necessary intermediate files
 
-    result_id   --  Essentially this is the filename where the result of this stage will be
-                    stored. If its raw data, this will be a hash of the operation function
-                    and the arguments passed to that function. If its an image or something
-                    similar, it will simply be a user-defined filename. Ignored if result_action
-                    is set to "auto". Must not be None if set to "manual"
+    result_id   --  This is the filename where the result of this stage will be
+                    stored. If result_action is set to "auto", this will be a hash of the operation function
+                    and the arguments passed to that function. If result_action is set to "manual",
+                    then this value will be used as the filename instead and blk will assume that the 
+                    operation function handles saving the data to disk.
 
     force_execute  --   If set to True, this Stage will execute regardless if a previous 
                         result exists
@@ -92,7 +92,7 @@ class Stage():
             self.result_id = result_id
 
     def __str__(self):
-        return f"{self.operation.__name__} {self.arguments[0]}"
+        return f"{self.operation.__name__} {self.tag}"
 
     def __repr__(self):
         return str(self)
@@ -125,9 +125,10 @@ def run(task, parallelism):
 
     if DRYRUN: return COMPLETE
 
-    if len(task.dependencies) == 0:
+    if len(task.dependencies) == 0 or task.operation == blk.utils.create_package:
         args = task.arguments
-
+    elif task.operation == blk.utils.noop:
+        args = []
     else: 
         data_dict = dict()
         for result_id, stage in task.dependencies.items():
@@ -179,6 +180,7 @@ def execute(root_stage, parallelism=NONE):
     parser.add_argument('-y', action="store_true", default=False)
     
     args, unknown = parser.parse_known_args()
+    args = vars(args)
     DEBUG = args["d"] or args["y"]
     DRYRUN = args["y"]
     
@@ -303,6 +305,10 @@ def determine_workload(root):
         # otherwise, we simply save the found result in the
         # results dictionary
         for result_id, stage in current_stage.dependencies.items():
+
+            # If the stage has been added already, skip it
+            if stage in execution_stack:
+                continue
 
             do_stage = stage.force_execute or \
                 (not blk.utils.exists_in_cache(stage) and \
