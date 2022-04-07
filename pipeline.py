@@ -1,114 +1,11 @@
 import time, os, sys, argparse
 from mpi4py import MPI
-import blk.utils
-
-# enumerate possible values for result_action
-ACTION_OPTIONS = ["auto", "manual"]
-AUTO, MANUAL = ACTION_OPTIONS
-
-# enumerate possible values for parallelism
-PARALLELISM_OPTIONS = ["none", "task", "stage"]
-NONE, TASK, STAGE = PARALLELISM_OPTIONS
-
-TASK_STATUS_OPTIONS = ["complete", "skipped", "failed"]
-COMPLETE, SKIP, FAIL = TASK_STATUS_OPTIONS
-
+from blk import cache, utils
+from blk.enums import *
+from blk.stages import *
 
 DEBUG = False
 DRYRUN = False
-
-class Stage():
-
-    """
-    A Stage represents a single unit of pipeline execution. 
-
-    A Stage may or may not depend on the execution of previous
-    stages. These dependencies are stored as a list of other Stage objects.
-    Before executing itself, a Stage checks to see if its dependencies 
-    have cached results already available, if not, it executes its dependencies, 
-    which will in turn execute their dependencies in a recursive manner. 
-
-    operation   --  The function that performs the actions required to produce a result
-                    that can be saved to the cache and referenced later, or to make
-                    a final analysis product, i.e. a plot. 
-
-    arguments --    List of arguments passed to the operation function. These arguments get
-                    included in the hash if this stage's result_action is "auto". Other arguments 
-                    to the function, i.e. those from dependencies, do not get included
-                    in the hash. 
-
-    tag --          User-defined tag for the stage so it can be determined what data
-                    each result actually corresponds to. If not set, assumed to be a 
-                    root node (set to "root").
-
-    depends_on --   List of Stages that must be completed prior to this Stage's execution.
-                    If None, this stage can be executed independently of any others and 
-                    thus represents a leaf node in the dependency tree. 
-    
-    result_action --   "auto" if this stage should automatically handle its result by pickling
-                        the data and placing it in the cache, or "manual" if the operation itself
-                        will handle the creation of any necessary intermediate files
-
-    result_id   --  This is the filename where the result of this stage will be
-                    stored. If result_action is set to "auto", this will be a hash of the operation function
-                    and the arguments passed to that function. If result_action is set to "manual",
-                    then this value will be used as the filename instead and blk will assume that the 
-                    operation function handles saving the data to disk.
-
-    force_execute  --   If set to True, this Stage will execute regardless if a previous 
-                        result exists
-
-    run_only_on_root -- Only use if running using Stage parallelism. This setting is ignored
-                        otherwise. Ensures this stage runs serially on the root process only.
-    """
-
-    def __init__(self, 
-        operation, 
-        arguments, 
-        tag="root",
-        depends_on=[], 
-        result_action=AUTO,
-        result_id=None,
-        run_only_on_root=False, 
-        force_execute=False):
-
-        self.operation = operation
-        self.arguments = arguments
-        self.result_action = result_action
-        self.force_execute = force_execute
-        self.tag = tag
-        self.run_only_on_root = run_only_on_root
-        
-        self.dependencies = dict()
-        for stage in depends_on:
-            self.dependencies[stage.result_id] = stage
-
-        if self.result_action == AUTO:
-            self.result_id = blk.utils.get_func_hash(self.operation, self.arguments)
-        elif result_id is None:
-            pass
-            # TODO: throw some kind of exception
-        else:
-            self.result_id = result_id
-
-    def __str__(self):
-        return f"{self.operation.__name__} {self.tag}"
-
-    def __repr__(self):
-        return str(self)
-    
-#     def __repr__(self):
-#         dependency_tags = ""
-#         for result_id, stage in self.dependencies.items():
-#             dependency_tags += stage.tag + "\n    "
-
-#         return f"""
-# Stage: {self.operation.__name__} 
-# arguments: {self.arguments}
-# tag: {self.tag}
-# depends on: 
-#     {dependency_tags}
-#         """
 
 """
 Runs the stage, saves result to cache if set to AUTO
@@ -125,15 +22,15 @@ def run(task, parallelism):
 
     if DRYRUN: return COMPLETE
 
-    if len(task.dependencies) == 0 or task.operation == blk.utils.create_package:
+    if len(task.dependencies) == 0 or task.is_gather:
         args = task.arguments
-    elif task.operation == blk.utils.noop:
+    elif task.operation == utils.noop:
         args = []
     else: 
         data_dict = dict()
-        for result_id, stage in task.dependencies.items():
-            if stage.result_action == AUTO:
-                data_dict[stage.tag] = blk.utils.load_result_from_cache(result_id)
+        for cache_id, stage in task.dependencies.items():
+            if stage.action == AUTO:
+                data_dict[stage.tag] = cache.load(cache_id)
 
         if len(data_dict) > 0:
             args = [data_dict, *task.arguments]
@@ -144,13 +41,13 @@ def run(task, parallelism):
 
     # Figure out if we're saving to file automatically
     # Stage-parallel tasks only save on the root process
-    x = task.result_action == AUTO 
+    x = task.action == AUTO 
     y = parallelism == STAGE
     z = RANK == 0
     do_save =  x and (not y or z)
     if do_save:
-        if DEBUG: print(f"Saved results of {task} to file with id: {task.result_id}")
-        blk.utils.save_to_cache(data, task.result_id)
+        if DEBUG: print(f"Saved results of {task} to file: {task.cache_id}")
+        cache.save(data, task.cache_id)
 
     if DEBUG: print(f"Finished {task}")
     return COMPLETE # finished with no errors
@@ -172,7 +69,7 @@ COMM = MPI.COMM_WORLD
 COMM_SIZE = COMM.Get_size()
 RANK = COMM.Get_rank()
 
-def execute(root_stage, parallelism=NONE):
+def execute(root_stage, parallelism=NONE, debug_mode=False, dry_run=False):
 
     global DEBUG, DRYRUN
     parser = argparse.ArgumentParser()
@@ -181,8 +78,8 @@ def execute(root_stage, parallelism=NONE):
     
     args, unknown = parser.parse_known_args()
     args = vars(args)
-    DEBUG = args["d"] or args["y"]
-    DRYRUN = args["y"]
+    DEBUG = args["d"] or args["y"] or debug_mode or dry_run
+    DRYRUN = args["y"] or dry_run
     
 
     if parallelism not in PARALLELISM_OPTIONS:
@@ -195,11 +92,11 @@ def execute(root_stage, parallelism=NONE):
     # The root process is the source of truth for what needs to 
     # be done and what is finished
     if RANK == 0:
-        execution_stack, cache = determine_workload(root_stage)
+        execution_stack, virtual_cache = determine_workload(root_stage)
         execution_stack_size = len(execution_stack)
     else: 
         execution_stack_size = 0
-        cache = set()
+        virtual_cache = set()
 
     execution_stack_size = COMM.bcast(execution_stack_size, root=0)
 
@@ -208,7 +105,7 @@ def execute(root_stage, parallelism=NONE):
         iterations += 1
 
         if RANK == 0:
-            task_list = collect_task_list(execution_stack, cache, 
+            task_list = collect_task_list(execution_stack, virtual_cache, 
                 parallelism=parallelism, 
                 num_procs=COMM_SIZE)
 
@@ -225,7 +122,7 @@ def execute(root_stage, parallelism=NONE):
 
         else: 
             task_list = None
-            cache = set() # make sure we have an empty cache on non-root processes each loop
+            virtual_cache = set() # make sure we have an empty cache on non-root processes each loop
 
         if parallelism == STAGE:
             task_list = COMM.bcast(task_list, root=0)
@@ -239,7 +136,7 @@ def execute(root_stage, parallelism=NONE):
             task_status = run(task, parallelism)
 
             if task_status == COMPLETE:
-                cache.add(task.result_id)
+                virtual_cache.add(task.cache_id)
             elif task_status == SKIP:
                 if DEBUG: print(f"Rank {RANK} skipped task {task}")
             elif task_status == FAIL:
@@ -250,17 +147,17 @@ def execute(root_stage, parallelism=NONE):
         # Gather results from other processes about the tasks they completed
         # and save them to the cache
         if parallelism == TASK:
-            all_caches = cache
+            all_caches = virtual_cache
             all_caches = COMM.gather(all_caches, root=0)
 
-            if RANK == 0: cache = reduce_cache(all_caches)
+            if RANK == 0: virtual_cache = reduce_cache(all_caches)
         
         # Recalculate how much work we have left and broadcast the result to 
         # the other processes
         if RANK == 0:
             new_execution_stack = []
             for task in execution_stack:
-                if task.result_id not in cache:
+                if task.cache_id not in virtual_cache:
                     new_execution_stack.append(task)
 
             execution_stack = new_execution_stack
@@ -273,7 +170,7 @@ def execute(root_stage, parallelism=NONE):
 
     # end while 
 
-    runtime = blk.utils.format_time(time.time() - start)
+    runtime = utils.format_time(time.time() - start)
     if RANK == 0: print(f"Total runtime: {runtime}")
     return True
 
@@ -283,7 +180,12 @@ def determine_workload(root):
 
     traversal_queue = []
     execution_stack = []
-    cache = set()
+
+    # the virtual cache is how blk keeps track of what's in the real cache
+    # cache = module that maintains functions that change the state of the real cache
+    # virtual_cache = data structure that mimics the state of the real cache
+    #                 for convenience sake
+    virtual_cache = set()
 
     # We always assume we are running the root node in the tree
     execution_stack.append(root)
@@ -304,36 +206,36 @@ def determine_workload(root):
         # and execution stack simultaneously
         # otherwise, we simply save the found result in the
         # results dictionary
-        for result_id, stage in current_stage.dependencies.items():
+        for cache_id, stage in current_stage.dependencies.items():
 
             # If the stage has been added already, skip it
             if stage in execution_stack:
                 continue
 
             do_stage = stage.force_execute or \
-                (not blk.utils.exists_in_cache(stage) and \
-                not os.path.exists(stage.result_id))
+                (not cache.exists(stage) and \
+                not os.path.exists(stage.cache_id))
 
             if do_stage:
                 traversal_queue.append(stage)
                 execution_stack.append(stage)
             else :
-                cache.add(stage.result_id)
+                virtual_cache.add(stage.cache_id)
                 
         traversal_queue.remove(current_stage)
     # end while 
 
-    return execution_stack, cache
+    return execution_stack, virtual_cache
 
             
 
-def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
+def collect_task_list(execution_stack, virtual_cache, parallelism=NONE, num_procs=1):
 
     if parallelism == NONE or parallelism == STAGE:
         task_list = []
 
         for stage in execution_stack:
-            if dependencies_are_met(stage, cache):
+            if dependencies_are_met(stage, virtual_cache):
                 task_list.append(stage)
         return task_list
     
@@ -343,7 +245,7 @@ def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
 
         all_tasks = []
         for stage in execution_stack:
-            if dependencies_are_met(stage, cache):
+            if dependencies_are_met(stage, virtual_cache):
                 all_tasks.append(stage)
 
         iterations = 0
@@ -355,8 +257,8 @@ def collect_task_list(execution_stack, cache, parallelism=NONE, num_procs=1):
     return None
 
 
-def dependencies_are_met(stage, cache):
-    all_met = all([result_id in cache for result_id in stage.dependencies.keys()])
+def dependencies_are_met(stage, virtual_cache):
+    all_met = all([cache_id in virtual_cache for cache_id in stage.dependencies.keys()])
 
     if DEBUG and all_met: 
         print(f"All dependencies met for {stage}")
@@ -366,12 +268,12 @@ def dependencies_are_met(stage, cache):
     return all_met
 
 
-def reduce_cache(cache_list):
+def reduce_cache(virtual_cache_list):
 
-    cache = set()
-    for c in cache_list:
-        cache = cache | c
-    return cache
+    virtual_cache = set()
+    for c in virtual_cache_list:
+        virtual_cache = virtual_cache | c
+    return virtual_cache
 
 
         

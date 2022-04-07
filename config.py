@@ -1,1 +1,0 @@
-CACHE_DIR = "/mnt/gs18/scratch/users/llorente/blk_qcache"

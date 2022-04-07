@@ -273,7 +273,11 @@ def get_particles_in_halo(dataset,
     return particle_data
 
 
-def get_particles_by_id(data, dataset):
+# The unique_to parameter is used to assign some unique parameter that 
+# distinguishes this run from other runs, since its likely the user
+# will want to pull different data from the same dataset.
+# Most likely, you will want to use the halo id as a unique parameter
+def get_particles_by_id(data, dataset, unique_to):
     
     ds = yt.load(dataset)
     ad = ds.all_data()
@@ -294,3 +298,51 @@ def get_particles_by_id(data, dataset):
     particle_data["z"]  = np.array(ad[('all', 'particle_position_z')])[array_mask]
 
     return particle_data
+
+
+
+# Attempts to determine halo properties from an initial guess location in a 
+# simulation dataset
+def get_halo_from_location(
+    dataset, 
+    location, 
+    initial_radius,
+    threshold):
+
+    MAX_ITERATIONS = 25
+    RADIUS_DECREASE_PER_ITERATION = 0.75
+
+    ds = yt.load(dataset)
+
+    iterations = 0
+    
+    eps = 1
+    centers = [location]
+
+    while (iterations < MAX_ITERATIONS and eps > threshold):
+
+        radius = initial_radius*(RADIUS_DECREASE_PER_ITERATION**iterations)
+
+        
+        sphere = ds.sphere(centers[iterations],(radius, "code_length"))
+        
+        com = sphere.quantities.center_of_mass(use_particles=True)
+        centers.append(
+            np.array(com.to('code_length').value)
+        )
+
+        eps = np.linalg.norm(centers[iterations+1] - centers[iterations])
+
+        # For debug purposes 
+        # plot = yt.SlicePlot(
+        #     ds, "z", ("gas", "density"),
+        #     center=sphere.center,
+        #     width=(2*radius, "code_length"),
+        #     data_source=sphere
+        # )
+
+        # plot.save(f"iteration_{iterations}")
+
+        iterations += 1
+
+    return centers
