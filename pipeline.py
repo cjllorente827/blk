@@ -32,10 +32,24 @@ def run(task, parallelism):
             if stage.action == AUTO:
                 data_dict[stage.tag] = cache.load(cache_id)
 
-        if len(data_dict) > 0:
-            args = [data_dict, *task.arguments]
-        else:
+        """
+        If no dependencies saved data to cache, then proceed with the given 
+        list of arguments.
+
+        If only one dependency exists, deliver the data directly to the 
+        function. 
+
+        If multiple dependencies exist, place the data in a dictionary 
+        keyed by the individual tags of each stage. 
+        """
+        if len(data_dict) == 0:
             args = task.arguments
+        elif len(data_dict) == 1:
+            first_arg = list(data_dict.values())[0]
+            args = [first_arg, *task.arguments]
+        else:
+            args = [data_dict, *task.arguments]
+            
 
     data = task.operation(*args)
 
