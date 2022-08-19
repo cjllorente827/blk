@@ -1,0 +1,86 @@
+
+# blk only cares about where you want to save files to
+# and what kind of parallelism you want to use
+# everything else is specific to the pipeline
+[blk]
+cache_dir = ${user args:enzo_dataset_dir}/cache
+parallel = none
+dryrun_mode = on
+debug_mode = on
+# name of the file where operation definitions are kept
+# or 'blk' to use blk premade operations
+operations_module = blk
+
+# These are where the user should assign arguments
+# the section titles can be anything the user wants
+[user args]
+enzo_dataset_dir = /mnt/gs21/scratch/llorente/halo_4954_lowres/fiducial_run
+box_center = [0.5, 0.5, 0.5]
+# 0.4 is 10 Mpccm/h
+box_length = 0.24 
+cmap = viridis
+field = ("gas", "density")
+field_name = "Density\n(g cm$$^{-3}$$)"
+zlims = [1e-31, 9e-25]
+field_units = g/cm**3
+projection_axis = x
+rotation_axis = z 
+img_res = 1024
+axes_units = Mpccm/h
+
+# These sections have to be labeled "segment N" where N is the number of the 
+# pipeline segment
+[segment 1]
+
+# name of the function this segment will execute
+operation = static_projection
+# how many tasks will be created in this segment of the pipeline
+num_tasks = 2
+
+# this is the argument that gets formatted individually for all tasks, meaning that 
+# each task gets this variable set like so:
+#
+# for i in range(width):
+#     task.enzo_dataset = enzo_dataset.format(i)
+# 
+format = enzo_dataset
+enzo_dataset = ${user args:enzo_dataset_dir}/RD{0:04d}/RD{0:04d}
+
+# the rest of these will be passed in as keyword arguments
+field = ${user args:field}
+field_units = ${user args:field_units}
+
+box_center = ${user args:box_center}
+box_length = ${user args:box_length}
+
+img_res = ${user args:img_res}
+projection_axis = ${user args:projection_axis}
+#rotation_axis = ${user args:rotation_axis}
+
+[segment 2]
+
+operation = static_projection_plot
+
+# determines how dependencies get assigned
+# this strategy assigns segment 2 task 5 as dependent on segment 1 task 5
+dependency_strategy = one-to-one
+# the width of the segment, i.e. how many tasks get created
+# this value will be overidden due to the dependency strategy
+num_tasks = 0
+
+enzo_dataset = ${user args:enzo_dataset_dir}/RD{0:04d}/RD{0:04d}
+
+save_action = manual
+format = output_file, enzo_dataset
+output_file = /mnt/gs21/scratch/llorente/halo_4954_lowres/fiducial_run/temp/RD{0:04d}.png
+
+# the rest of these will be passed in as keyword arguments
+field_name = ${user args:field_name}
+axes_units = ${user args:axes_units}
+
+box_length = ${user args:box_length}
+
+img_res = ${user args:img_res}
+cmap = ${user args:cmap}
+zlims = ${user args:zlims}
+

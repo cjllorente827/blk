@@ -41,7 +41,8 @@ def projection(  dataset,
             field_units,
             start_vector,
             rotation_axis,
-            rotation_angle):
+            rotation_angle,
+            use_mip):
 
 
     if rotation_axis not in Rotation_Matrix.keys():
@@ -51,7 +52,7 @@ def projection(  dataset,
     ds = yt.load(dataset)
 
     # include a small buffer around the box to avoid deadzones in the plot
-    dl = box_length*1.2 
+    dl = box_length*1.1 
     x,y,z = box_center - dl / 2  * np.ones(3)
     box = ds.r[x:x+dl, y:y+dl, z:z+dl]
 
@@ -96,7 +97,7 @@ def plot(   data,
     y = np.linspace(-L, L, img_res+1, endpoint=True)
     X,Y = np.meshgrid(x,y)
     
-    im = ax.pcolormesh(X, Y, data["projection"], 
+    im = ax.pcolormesh(X, Y, data, 
         cmap=cmap, 
         norm=LogNorm(vmin=zlims[0], vmax=zlims[1]))
         
@@ -112,6 +113,8 @@ def plot(   data,
     ax.set_aspect('equal')
 
     print(f"Saving to file: {plot_filename}")
+
+    plt.title(f"z = {ds.current_redshift}")
     
     plt.savefig(plot_filename)
     plt.close()

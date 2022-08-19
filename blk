@@ -1,0 +1,26 @@
+#!/usr/bin/env python
+
+from configparser import ConfigParser, ExtendedInterpolation
+from blk import Pipeline, TaskParallelPipeline
+import sys
+
+
+if __name__ == "__main__":
+    config_file = sys.argv[1]
+
+    config = ConfigParser(
+        allow_no_value=True, 
+        interpolation=ExtendedInterpolation())
+
+    # prevents configparser from lowercasing everything
+    config.optionxform = str
+    config.read(config_file)
+
+    if config["blk"]["parallel"] == "task":
+        pipe = TaskParallelPipeline(config)
+    else:
+        pipe = Pipeline(config)
+
+    pipe.run()
+
+    

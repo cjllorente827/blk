@@ -88,7 +88,6 @@ class Stage():
 
 def gather(package_name, stages,compress):
 
-
     try:
         #print(f"mkdir {package_name}")
         os.mkdir(package_name)
