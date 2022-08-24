@@ -7,16 +7,14 @@ import importlib
 from constants import (
     MANUAL,
     MAX_SEGMENTS,
-    ONE_TO_ONE, 
-    ALL, 
-    NONE, 
+    ONE_TO_ONE,  
+    NONE,
     AUTO,
-    DEPENDENCY_STRATEGIES,
     TASK_ACTION_OPTIONS
 )
 
-from blk import Task, GatherTask, Cache
-
+from blk import Task, Terminal, Cache
+from mpi4py import MPI
 
 
 # the special arguments that get used in the creation of tasks for a given segment
@@ -34,18 +32,21 @@ SPECIAL_ARGS = [
 
 def parseConfig(self, config):
 
+    comm_size = MPI.COMM_WORLD
+    comm_rank = MPI.COMM_WORLD.Get_rank()
+
     self.cache_dir = abspath(config["blk"]["cache_dir"])
     self.operations_module = importlib.import_module(config["blk"]["operations_module"])
 
-    self.debug_mode = config.getboolean("blk", "debug_mode")
+    self.debug_mode = config.getboolean("blk", "debug_mode") and comm_rank == 0
     self.dryrun_mode = config.getboolean("blk","dryrun_mode")
 
     if not exists(self.cache_dir):
-        print(f"{self.cache_dir} not found\nCreating new directory...")
+        comm_rank == 0 and print(f"{self.cache_dir} not found\nCreating new directory...")
         mkdir(self.cache_dir)
 
     self.cache = Cache(self.cache_dir)
-    self.debug_mode and print(f"File cache set to : {self.cache_dir}")
+    comm_rank == 0 and print(f"File cache set to : {self.cache_dir}")
 
     i = 1
     while f"segment {i}" in config.sections() and i < MAX_SEGMENTS: 
@@ -64,14 +65,11 @@ def parseConfig(self, config):
 
         current_segment = f"segment {i+1}"
 
-        # determine which dependency strategy we're going to use
-        if i == 0:
-            dependency_strategy = NONE
-        else :
-            dependency_strategy = config[current_segment]["dependency_strategy"]    
-            assert(dependency_strategy in DEPENDENCY_STRATEGIES)
-
         # determine the number of tasks in this segment
+        dependency_strategy = config[current_segment]["dependency_strategy"] \
+            if "dependency_strategy" in config[current_segment].keys() \
+            else NONE
+
         if dependency_strategy == ONE_TO_ONE:
             num_tasks = len(self.all_tasks[i-1])
         else :
@@ -96,12 +94,11 @@ def parseConfig(self, config):
             format_strings = [config[current_segment][a] for a in format_args]
             
 
-        for j in range(num_tasks):
+        always_run = False
+        if "always_run" in config[current_segment].keys():
+            always_run = guessType(config[current_segment]["always_run"])
 
-            # establish list of dependencies
-            dependencies = [self.all_tasks[i-1][j]] \
-                if dependency_strategy == ONE_TO_ONE\
-                else None 
+        for j in range(num_tasks):
 
             # if any arguments need to be formatted, do that here
             for k, a in enumerate(format_args):
@@ -122,6 +119,8 @@ def parseConfig(self, config):
                 if  key in SPECIAL_ARGS : continue
                 arguments[key] = guessType(config[current_segment][key])
             # end for key
+
+            
             
             # create the Task
             new_task = Task(
@@ -129,26 +128,22 @@ def parseConfig(self, config):
                 operation=operation,
                 arguments=arguments,
                 index=(j if num_tasks > 1 else None),
-                dependencies=dependencies,
+                dependencies=self.getDependencies(dependency_strategy, j),
                 save_action=save_action,
-                output_file=output_file
+                output_file=output_file,
+                always_run=always_run
             )
             self.all_tasks[i].append(new_task)
         # end for j
-        self.debug_mode and print(f"Segment {i+1} created with width {num_tasks}")
+        self.debug_mode and print(f"Segment {i+1} created with {num_tasks} tasks")
     # end for i
 
-    # add a gather task at the end if there are multiple tasks in the last segment
-    if len(self.all_tasks[-1]) > 1:
-        self.all_tasks += [[]]
-        new_task = GatherTask(self.all_tasks[-2])
-        self.all_tasks[-1].append(new_task)
+    
+    self.all_tasks += [[]]
+    term = Terminal(self)
+    self.all_tasks[-1].append(term)
 
-        self.root_task = new_task
-        self.debug_mode and print(f"GatherTask created: {new_task}")
-    # otherwise just grab the single task in the last segment
-    else:
-        self.root_task = self.all_tasks[-1][0]
+    self.root_task = term
 
         
 boolean_values = {

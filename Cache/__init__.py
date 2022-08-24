@@ -1,6 +1,6 @@
 
 from os import listdir, remove
-from os.path import isfile, join
+from os.path import isfile, join, exists
 
 import pickle
 
@@ -33,14 +33,22 @@ class Cache:
             cache_fname = join(self.directory, fname)
             if isfile(cache_fname):
                 self.virtual_cache.add(fname)
-                
+
+
+    def getResultFilename(self, task):
+        if task.save_action == AUTO:
+            return join(self.directory, task.hashcode)
+        elif task.save_action == MANUAL:
+            return task.output_file
+        else :
+            return None
 
     def hasResultFor(self, task):
 
         if task.save_action == AUTO:
             return task.hashcode in self.virtual_cache
         elif task.save_action == MANUAL:
-            return task.output_file in self.virtual_cache
+            return exists(task.output_file)
         else :
             return False
 

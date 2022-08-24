@@ -1,6 +1,6 @@
 import datetime, subprocess
 
-def noop():
+def do_nothing(*args, **kwargs):
     pass
 
 def format_time(seconds):

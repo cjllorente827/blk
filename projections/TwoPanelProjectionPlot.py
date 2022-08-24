@@ -1,50 +1,12 @@
-
-import yt
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import AxesGrid, make_axes_locatable
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import yt
 import numpy as np
 
 plt.style.use("publication")
-yt.set_log_level(40)
 
-AXES = {
-    'x' : [1,0,0],
-    'y' : [0,1,0],
-    'z' : [0,0,1],
-}
-
-def static_projection(  
-            enzo_dataset=None, 
-            field=None, 
-            projection_axis=None,
-            box_center=None, 
-            box_length=1, 
-            img_res=1024, 
-            field_units=None):
-
-    ds = yt.load(enzo_dataset)
-
-    x,y,z = box_center
-    half_length = box_length*1.1/2 # include a small buffer around the box to avoid deadzones in the plot
-    box = ds.r[
-        x-half_length:x+half_length, 
-        y-half_length:y+half_length, 
-        z-half_length:z+half_length, 
-    ]
-
-    proj = yt.OffAxisProjectionPlot(ds, AXES[projection_axis], field, 
-        weight_field=field, 
-        data_source=box,
-        center=box_center,
-        buff_size=(img_res, img_res),
-        width=box_length)
-
-    result = np.array(proj.frb[field].to(field_units).value)
-
-    return result
-
-def static_projection_plot(   data, 
+def projectionPlot(   data, 
             enzo_dataset=None, 
             field_name=None, 
             img_res=None, 
@@ -55,7 +17,6 @@ def static_projection_plot(   data,
             output_file=None):
 
 
-    print(data)
     ds = yt.load(enzo_dataset)
     comoving_box_size = ds.domain_width[0].to(axes_units)
 
@@ -76,6 +37,7 @@ def static_projection_plot(   data,
         cmap=cmap, 
         norm=LogNorm(vmin=zlims[0], vmax=zlims[1]))
         
+    # this is the only way to make a colorbar look good
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = fig.colorbar(im, cax=cax)
@@ -87,6 +49,8 @@ def static_projection_plot(   data,
     ax.set_aspect('equal')
 
     print(f"Saving to file: {output_file}")
+
+    plt.title(f"z = {ds.current_redshift}")
     
     plt.savefig(output_file)
     plt.close()

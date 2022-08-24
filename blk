@@ -3,10 +3,10 @@
 from configparser import ConfigParser, ExtendedInterpolation
 from blk import Pipeline, TaskParallelPipeline
 import sys
-
+from os.path import abspath
 
 if __name__ == "__main__":
-    config_file = sys.argv[1]
+    config_file = abspath(sys.argv[1])
 
     config = ConfigParser(
         allow_no_value=True, 
@@ -17,9 +17,9 @@ if __name__ == "__main__":
     config.read(config_file)
 
     if config["blk"]["parallel"] == "task":
-        pipe = TaskParallelPipeline(config)
+        pipe = TaskParallelPipeline(config_file)
     else:
-        pipe = Pipeline(config)
+        pipe = Pipeline(config_file)
 
     pipe.run()
 

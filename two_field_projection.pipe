@@ -23,24 +23,17 @@ projection_axis = x
 rotation_axis = z 
 axes_units = Mpccm/h
 
-[field args]
-; cmap = viridis
-; field = ("gas", "density")
-; field_name = "Density\n(g cm$$^{-3}$$)"
-; zlims = [1e-31, 9e-25]
-; field_units = g/cm**3
-
 ; cmap = plasma
 ; field = ("gas", "temperature")
 ; field_name = "Temperature\n(K)"
 ; zlims = [1e3, 1e8]
 ; field_units = K
 
-cmap = dusk
-field = ("gas", "metallicity")
-field_name = "Metallicity\n(K)"
-zlims = [1e-4, 1e0]
-field_units = Zsun
+; cmap = dusk
+; field = ("gas", "metallicity")
+; field_name = "Metallicity\n(K)"
+; zlims = [1e-4, 1e0]
+; field_units = Zsun
 
 # These sections have to be labeled "segment N" where N is the number of the 
 # pipeline segment
@@ -61,8 +54,8 @@ format = enzo_dataset
 enzo_dataset = ${data args:enzo_dataset_dir}/RD{0:04d}/RD{0:04d}
 
 # the rest of these will be passed in as keyword arguments
-field = ${field args:field}
-field_units = ${field args:field_units}
+field = ("gas", "density")
+field_units = g/cm**3
 
 box_center = ${data args:box_center}
 box_length = ${data args:box_length}
@@ -72,11 +65,37 @@ projection_axis = ${data args:projection_axis}
 
 [segment 2]
 
-operation = projectionPlot
+# name of the function this segment will execute
+operation = projection
+# how many tasks will be created in this segment of the pipeline
+num_tasks = 266
+
+# this is the argument that gets formatted individually for all tasks, meaning that 
+# each task gets this variable set like so:
+#
+# for i in range(width):
+#     task.enzo_dataset = enzo_dataset.format(i)
+# 
+format = enzo_dataset
+enzo_dataset = ${data args:enzo_dataset_dir}/RD{0:04d}/RD{0:04d}
+
+# the rest of these will be passed in as keyword arguments
+field = ("gas", "temperature")
+field_units = K
+
+box_center = ${data args:box_center}
+box_length = ${data args:box_length}
+
+projection_axis = ${data args:projection_axis}
+#rotation_axis = ${user args:rotation_axis}
+
+[segment 3]
+
+operation = twoPanelProjectionPlot
 
 # determines how dependencies get assigned
 # this strategy assigns segment 2 task 5 as dependent on segment 1 task 5
-dependency_strategy = one-to-one
+dependency_strategy = many-to-one
 # the width of the segment, i.e. how many tasks get created
 # this value will be overidden due to the dependency strategy
 num_tasks = 0
@@ -89,11 +108,11 @@ format = output_file, enzo_dataset
 output_file = ${data args:enzo_dataset_dir}/temp/RD{0:04d}.png
 
 # the rest of these will be passed in as keyword arguments
-field_name = ${field args:field_name}
+field_names = ["Density\n(g cm$$^{-3}$$)", "Temperature\n(K)"]
 axes_units = ${data args:axes_units}
 
 box_length = ${data args:box_length}
 
-cmap = ${field args:cmap}
-zlims = ${field args:zlims}
+cmaps = ["viridis", "plasma"]
+zlims = [[1e-31, 9e-25],[1e3, 1e8]]
 

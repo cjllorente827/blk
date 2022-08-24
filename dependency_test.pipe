@@ -1,0 +1,84 @@
+[blk]
+cache_dir = ./cache
+parallel = task
+dryrun_mode = off
+debug_mode = on
+
+operations_module = blk.tests
+
+[segment 1]
+
+operation = echo
+
+num_tasks = 4
+
+format = task_number
+task_number = {:d}
+segment = 1
+
+
+[segment 2]
+
+operation = echo
+
+dependency_strategy = all-to-all
+num_tasks = 4
+
+format = task_number
+task_number = {:d}
+segment = 2
+
+[segment 3]
+
+operation = echo
+
+dependency_strategy = one-to-one
+
+format = task_number
+task_number = {:d}
+segment = 3
+
+[segment 4]
+
+operation = echo
+
+dependency_strategy = [[1], [2], [3]]
+num_tasks = 3
+
+format = task_number
+task_number = {:d}
+segment = 4
+
+[segment 5]
+
+operation = echo
+
+dependency_strategy = [[2, i], [3, i], [4,i]]
+num_tasks = 4
+
+format = task_number
+task_number = {:d}
+segment = 5
+
+
+[segment 6]
+
+operation = echo
+
+dependency_strategy = [[1, 0], [2, 1], [3, 2]]
+num_tasks = 3
+
+format = task_number
+task_number = {:d}
+segment = 6
+
+[segment 7]
+
+operation = echo
+
+dependency_strategy = [[1, 0], [6, r]]
+num_tasks = 4
+
+format = task_number
+task_number = {:d}
+segment = 7

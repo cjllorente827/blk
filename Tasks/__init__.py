@@ -1,6 +1,5 @@
 
-import inspect, hashlib
-from constants import AUTO
+from constants import AUTO, MANUAL
 from os.path import exists
 
 def do_nothing():
@@ -9,6 +8,7 @@ def do_nothing():
 class Task:
 
     from .GetWorkload import getWorkload
+    from .CreateHashCode import createHashCode
 
     def __init__(
         self, 
@@ -33,26 +33,36 @@ class Task:
         self.save_action = save_action
         self.dependencies = dependencies
         self.always_run = always_run
-        self.output_file=output_file,
+        self.output_file=output_file
 
-        self.hashcode = self.createHashCode()
+        self.dryrun_passthrough = False
+
+        self.hashcode = self.createHashCode() if save_action == AUTO else None
         self.result = None
 
         if self.save_action == AUTO:
-            self.output_file = None
-        # TODO: Finish this
-        else:
-            self.output_file = None
+            self.output_file = self.pipeline.cache.getResultFilename(self)
 
     def __str__(self):
-        my_str = f"{self.name}\nHashcode: {self.hashcode}\n"
-        
-        if self.dependencies != None and len(self.dependencies) > 0:
-            my_str += "\tDepends on:\n"
-            for d in self.dependencies:
-                my_str += f"\t\t{d.name}\n"
-        else:
-            my_str += "\tNo dependencies\n"
+
+        if self.pipeline.debug_mode:
+            my_str = f"{self.name}\nHashcode: {self.hashcode}\n"
+            
+            if self.dependencies != None and len(self.dependencies) > 0:
+                my_str += "Depends on:\n"
+                for d in self.dependencies:
+                    my_str += f"\t{d.name}\n"
+            else:
+                my_str += "No dependencies\n"
+
+            my_str += f"""
+            Always run : {self.always_run}
+            Save action: {self.save_action}
+            Output File: {self.output_file}"""
+        elif self.hashcode != None:
+            my_str = f"{self.name} {self.hashcode}"
+        else : 
+            my_str = f"{self.name}"
 
         return my_str
 
@@ -63,9 +73,9 @@ class Task:
     #            OR
     #   the cache has no result for this task
     def mustBeRun(self):
-        return self.always_run or not self.pipeline.cache.hasResultFor(self)
+        return self.always_run or not self.resultExists()
 
-    # A task is ready to be run if there exists a cache result for 
+    # A task is ready to be run if there exists a result for 
     # all of its dependencies
     def isReady(self):
         
@@ -73,53 +83,43 @@ class Task:
             return True
 
         for dep in self.dependencies:
-            if not dep.hasCachedResult():
+            if not dep.resultExists():
                 return False
         return True
+        
 
-    def hasCachedResult(self):
-        return self.pipeline.cache.hasResultFor(self)
+    def resultExists(self):
 
+        if self.pipeline.dryrun_mode:
+            return self.dryrun_passthrough
+
+        if self.save_action == AUTO:
+            return self.pipeline.cache.hasResultFor(self)
+        elif self.save_action == MANUAL:
+            return exists(self.output_file)
+        else :
+            print(f"[Error] task.save_action = {self.save_action}. Check your config file")
+            exit()
 
     def getResult(self):
-        if self.result != None:
-            return self.result
-        elif self.hasCachedResult():
-            return self.pipeline.cache.load(self)
-        elif exists(self.output_file):
-            return self.output_file
-        else:
-            print(f"[Warning] Call to getResult returned None")
+
+        if not self.resultExists():
+            print("[Warning] A call to getResult returned None")
             return None
 
+        if self.result is not None:
+            return self.result
+        elif self.save_action == AUTO:
+            return self.pipeline.cache.load(self)
+        elif self.save_action == MANUAL:
+            return self.output_file
 
-    def createHashCode(self):
-
-        # get the source code of the operation
-        source = inspect.getsource(self.operation)
-
-        def remove_all_whitespace(str):
-            ws_chars = [' ', '\t', '\n']
-            for char in ws_chars:
-                str = str.replace(char, '')
-            return str
-
-        def append_args(target, args):
-            for a in args.values():
-                target += str(a)
-            return target
-
-        # scrap the whitespace to prevent unnecessary 
-        # re-queries
-        source_no_ws = remove_all_whitespace(source)
-
-        # concatenate it with the arguments
-        target = append_args(source_no_ws, self.arguments)
-        
-        # convert string to a hash
-        return hashlib.md5(target.encode()).hexdigest()
 
     def run(self):
+
+        if self.pipeline.dryrun_mode:
+            self.dryrun_passthrough = True
+            return 
 
         if self.dependencies == None or len(self.dependencies) == 0:
 
@@ -137,5 +137,7 @@ class Task:
                 results[d.name] = d.getResult()
 
             self.result = self.operation(results, **self.arguments)
+
+        self.pipeline.cache.save(self)
         
             

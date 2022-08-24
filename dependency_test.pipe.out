@@ -1,0 +1,36 @@
+Pipeline created from /mnt/ufs18/home-119/llorente/blk/dependency_test.pipe
+Runtime: 0:00:00.000314
+Cache set to : /mnt/ufs18/home-119/llorente/blk/cache
+  Segment  Name      Hashcode                          Dependencies    Save Action    Always run    Output File
+---------  --------  --------------------------------  --------------  -------------  ------------  -----------------------------------------------------------------------
+        1  echo[0]   440ffa26f40f85b7c6deac729fd088cb  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/440ffa26f40f85b7c6deac729fd088cb
+        1  echo[1]   6f295118856814aa4154babbba11b81d  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/6f295118856814aa4154babbba11b81d
+        1  echo[2]   55c1526ff61284a7df2c4ea5f93ffb2a  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/55c1526ff61284a7df2c4ea5f93ffb2a
+        1  echo[3]   7268ce9eea66add79346ad92fa927a07  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/7268ce9eea66add79346ad92fa927a07
+        2  echo[0]   a8b68c88ebbc8ad5fd0165b15547f90f  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/a8b68c88ebbc8ad5fd0165b15547f90f
+        2  echo[1]   85ae2f703c7b5ab530c26376fbe81818  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/85ae2f703c7b5ab530c26376fbe81818
+        2  echo[2]   b7ec6ae1e334307b90b34cf8c71ef844  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/b7ec6ae1e334307b90b34cf8c71ef844
+        2  echo[3]   ef9f0617332ce41afb5ccc2b56b37fc1  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/ef9f0617332ce41afb5ccc2b56b37fc1
+        3  echo[0]   230c06cb86a70a8e6d382f1712586cd8  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/230c06cb86a70a8e6d382f1712586cd8
+        3  echo[1]   808e700c989280d1b2215d910caca2bb  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/808e700c989280d1b2215d910caca2bb
+        3  echo[2]   1adba519d9994320eaa833dc611387dd  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/1adba519d9994320eaa833dc611387dd
+        3  echo[3]   f058134539be151492203185abc21ed4  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/f058134539be151492203185abc21ed4
+        4  echo[0]   a980ccbfb6f06e9d93e982c5c39416f1  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/a980ccbfb6f06e9d93e982c5c39416f1
+        4  echo[1]   dfa65538b8d4706ff5370c0460cbc5a7  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/dfa65538b8d4706ff5370c0460cbc5a7
+        4  echo[2]   f4be86e3d5225c515b20a4d409117b36  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/f4be86e3d5225c515b20a4d409117b36
+        5  echo[0]   7fe57389a9e6da206688e060e3af2ab2  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/7fe57389a9e6da206688e060e3af2ab2
+        5  echo[1]   c1960817e03d950179a1c2291cf9e328  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/c1960817e03d950179a1c2291cf9e328
+        5  echo[2]   c0dbd3015adf67b8b8dd4b4ddde40ca6  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/c0dbd3015adf67b8b8dd4b4ddde40ca6
+        5  echo[3]   3a14640ad6d14fbf09b2a50428817af4  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/3a14640ad6d14fbf09b2a50428817af4
+        6  echo[0]   7dd1fcf32e0a29f386f5e1d901bfdb33  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/7dd1fcf32e0a29f386f5e1d901bfdb33
+        6  echo[1]   6c108fb78427c988b0fe8b9416fbbad5  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/6c108fb78427c988b0fe8b9416fbbad5
+        6  echo[2]   0707a52dd5fe11407cfe5751230e8cf1  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/0707a52dd5fe11407cfe5751230e8cf1
+        7  echo[0]   35746a799e130e4c6449b6b6d1643ea7  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/35746a799e130e4c6449b6b6d1643ea7
+        7  echo[1]   03de3d3e92d89aec0f6982c790375cf1  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/03de3d3e92d89aec0f6982c790375cf1
+        7  echo[2]   83bce36ab0dabe6b070e2bc15dfa269c  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/83bce36ab0dabe6b070e2bc15dfa269c
+        7  echo[3]   ec00235ab62cde7fc2696cf47d8cbc45  None            auto           False         /mnt/ufs18/home-119/llorente/blk/cache/ec00235ab62cde7fc2696cf47d8cbc45
+        8  finalize                                    echo[0]         manual         True          /mnt/ufs18/home-119/llorente/blk/dependency_test.pipe.out
+                                                       echo[1]
+                                                       echo[2]
+                                                       echo[3]
+
