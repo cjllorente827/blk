@@ -2,7 +2,7 @@ from configparser import ConfigParser, ExtendedInterpolation
 
 class Pipeline:
 
-    from .ParseConfig import parseConfig
+    from .ParseConfig import parseConfig, guessType
     from .Run import run
     from .WritePipelineInfo import writePipelineInfo
     from .GetDependencies import getDependencies
@@ -19,7 +19,7 @@ class Pipeline:
 
         self.config_file = config_file
         self.all_tasks = None
-        self.run_time = None
+        self.runtime = None
         self.cache_dir = None
         self.operations_module = None
 

@@ -22,6 +22,7 @@ from mpi4py import MPI
 # the task operation
 SPECIAL_ARGS = [
     "operation",
+    "name",
     "num_tasks",
     "dependency_strategy",
     "format",
@@ -38,8 +39,11 @@ def parseConfig(self, config):
     self.cache_dir = abspath(config["blk"]["cache_dir"])
     self.operations_module = importlib.import_module(config["blk"]["operations_module"])
 
-    self.debug_mode = config.getboolean("blk", "debug_mode") and comm_rank == 0
-    self.dryrun_mode = config.getboolean("blk","dryrun_mode")
+    if "debug_mode" in config["blk"].keys():
+        self.debug_mode = config.getboolean("blk", "debug_mode") and comm_rank == 0
+
+    if "dryrun_mode" in config["blk"].keys():
+        self.dryrun_mode = config.getboolean("blk","dryrun_mode")
 
     if not exists(self.cache_dir):
         comm_rank == 0 and print(f"{self.cache_dir} not found\nCreating new directory...")
@@ -75,6 +79,10 @@ def parseConfig(self, config):
         else :
             num_tasks = config.getint(current_segment, "num_tasks")
 
+        if num_tasks == 0:
+            print(f"[Error] {current_segment} was created with 0 tasks! Check your config file.")
+            exit()
+
         # determine whether blk handles the output files (AUTO) or if the 
         # operation function will do that (MANUAL)
         if "save_action" in config[current_segment].keys():
@@ -94,9 +102,13 @@ def parseConfig(self, config):
             format_strings = [config[current_segment][a] for a in format_args]
             
 
+        # TODO: An always run task should clear its cached result before 
+        # the pipeline starts executing
         always_run = False
         if "always_run" in config[current_segment].keys():
-            always_run = guessType(config[current_segment]["always_run"])
+            always_run = self.guessType(config[current_segment]["always_run"])
+
+        dependencies_list = self.getDependencies(dependency_strategy, num_tasks)
 
         for j in range(num_tasks):
 
@@ -112,23 +124,32 @@ def parseConfig(self, config):
                 if save_action == MANUAL\
                 else None 
 
+            name = config[current_segment]["name"] \
+                if "name" in config[current_segment].keys()\
+                else None
+
             # collect all the other properties and convert them to keyword arguments
             arguments = {}
             for key in config[current_segment].keys():
 
                 if  key in SPECIAL_ARGS : continue
-                arguments[key] = guessType(config[current_segment][key])
-            # end for key
+                arguments[key] = self.guessType(config[current_segment][key])
 
-            
+                # If this is a function, replace its value with the function's 
+                # return value 
+                if callable( arguments[key]) :
+                    f = arguments[key]
+                    arguments[key] = f(j, num_tasks)
+            # end for key
             
             # create the Task
             new_task = Task(
+                name=name,
                 pipeline=self,
                 operation=operation,
                 arguments=arguments,
                 index=(j if num_tasks > 1 else None),
-                dependencies=self.getDependencies(dependency_strategy, j),
+                dependencies=dependencies_list[j],
                 save_action=save_action,
                 output_file=output_file,
                 always_run=always_run
@@ -139,8 +160,9 @@ def parseConfig(self, config):
     # end for i
 
     
-    self.all_tasks += [[]]
+    
     term = Terminal(self)
+    self.all_tasks += [[]]
     self.all_tasks[-1].append(term)
 
     self.root_task = term
@@ -154,13 +176,13 @@ boolean_values = {
     "on"    : True,
     "off"   : False,
     "yes"   : True,
-    "no"    :False
+    "no"    : False
 }
 
 
 # tries to guess what the type of the value is based on its string representation
 # will return whatever it guesses
-def guessType(value):
+def guessType(self, value):
 
     # trim quotes and white space from string values
     value = value.strip()
@@ -185,13 +207,30 @@ def guessType(value):
     except ValueError:
         pass
 
+    def dressAsArray(value):
+
+        if not value.startswith('['):
+            value = '['+value
+
+        if not value.endswith(']'):
+            value = value+']'
+
+        return value
+
     # try converting it to an array
     if (value.startswith('[') and value.endswith(']')):
-        values = value[1:-1].split(',')
+
+        # test for multi-dimensionality
+        multi_values = value[1:-1].split('],[')
+        multidim = len(multi_values) > 1
+        if multidim:
+            values = [ dressAsArray(v) for v in multi_values]
+        else : 
+            values = value[1:-1].split(',')
 
         arr = []
         for v in values:
-            arr.append( guessType(v) )
+            arr.append( self.guessType(v) )
 
         return arr
 
@@ -201,10 +240,19 @@ def guessType(value):
 
         arr = []
         for v in values:
-            arr.append( guessType(v) )
+            arr.append( self.guessType(v) )
 
         return tuple(arr)
 
+    # maybe its defined in our operations module
+    try:
+        attr = getattr(self.operations_module, value)
+    except AttributeError as e:
+        pass
+    else:
+        return attr
+
     # Give up and assume its a string
     return value
+
 

@@ -2,13 +2,13 @@
 cache_dir = ./cache
 parallel = task
 dryrun_mode = off
-debug_mode = on
+debug_mode = off
 
 operations_module = blk.tests
 
 [segment 1]
 
-operation = echo
+operation = segment1
 
 num_tasks = 4
 
@@ -16,10 +16,12 @@ format = task_number
 task_number = {:d}
 segment = 1
 
+test_array = [1,2,3,4,5]
+
 
 [segment 2]
 
-operation = echo
+operation = segment2
 
 dependency_strategy = all-to-all
 num_tasks = 4
@@ -30,7 +32,7 @@ segment = 2
 
 [segment 3]
 
-operation = echo
+operation = segment3
 
 dependency_strategy = one-to-one
 
@@ -40,10 +42,10 @@ segment = 3
 
 [segment 4]
 
-operation = echo
+operation = segment4
 
 dependency_strategy = [[1], [2], [3]]
-num_tasks = 3
+num_tasks = 4
 
 format = task_number
 task_number = {:d}
@@ -51,7 +53,7 @@ segment = 4
 
 [segment 5]
 
-operation = echo
+operation = segment5
 
 dependency_strategy = [[2, i], [3, i], [4,i]]
 num_tasks = 4
@@ -63,7 +65,7 @@ segment = 5
 
 [segment 6]
 
-operation = echo
+operation = segment6
 
 dependency_strategy = [[1, 0], [2, 1], [3, 2]]
 num_tasks = 3
@@ -74,7 +76,7 @@ segment = 6
 
 [segment 7]
 
-operation = echo
+operation = segment7
 
 dependency_strategy = [[1, 0], [6, r]]
 num_tasks = 4

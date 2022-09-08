@@ -1,46 +1,63 @@
 
+
 import yt
 import numpy as np
 
+from blk.constants import AXES, DEFAULT_UNITS, ENZO_FIELDS, NORTH_VECTORS
+
+from blk.projections import ExtraDerivedFields
 
 yt.set_log_level(40)
 
-AXES = {
-    'x' : [1,0,0],
-    'y' : [0,1,0],
-    'z' : [0,0,1],
-}
+
 
 def projection(  
             enzo_dataset=None, 
-            field=("gas", "density"), 
-            projection_axis="x",
-            box_center=[0.5,0.5,0.5], 
-            box_length=1, 
+            field="density", 
+            weight_field="density",
+            projection_axis="z",
+            center=[0.5,0.5,0.5], 
+            length=1, 
+            shape="cube",
             img_res=1024,
             use_mip=False,
-            field_units="g/cm**3"):
+            field_units=None):
+
+    if field_units == None:
+        field_units = DEFAULT_UNITS[field]
 
     ds = yt.load(enzo_dataset)
 
-    x,y,z = box_center
-    half_length = box_length*1.1/2 # include a small buffer around the box to avoid deadzones in the plot
-    box = ds.r[
-        x-half_length:x+half_length, 
-        y-half_length:y+half_length, 
-        z-half_length:z+half_length, 
-    ]
+    if shape == "cube" or "box":
+        x,y,z = center
+        half_length = length*1.05/2 # include a small buffer around the box to avoid deadzones in the plot
+        data_source = ds.r[
+            x-half_length:x+half_length, 
+            y-half_length:y+half_length, 
+            z-half_length:z+half_length, 
+        ]
+        width = length
+    elif shape == "sphere" or "ball":
+        data_source = ds.sphere(center, length)
+        width = 2*length
 
-    method = "mip" if use_mip else "integrate"
 
-    proj = yt.OffAxisProjectionPlot(ds, AXES[projection_axis], field, 
-        weight_field=field, 
-        data_source=box,
-        north_vector=(0, 0, 1.),
-        center=box_center,
+    if use_mip:
+        method = "mip" 
+        weight_field = None
+    else:
+        method = "integrate"
+        weight_field = ENZO_FIELDS[weight_field]
+
+    proj = yt.ProjectionPlot(ds, 
+        projection_axis, 
+        ENZO_FIELDS[field], 
+        weight_field=weight_field, 
+        data_source=data_source,
+        center=center,
         method=method,
         buff_size=(img_res, img_res),
-        width=box_length)
+        width=width)
 
     result = np.array(proj.frb[field].to(field_units).value)
 

@@ -12,6 +12,7 @@ class Task:
 
     def __init__(
         self, 
+        name=None,
         pipeline=None,
         operation=do_nothing, 
         arguments={}, 
@@ -21,10 +22,16 @@ class Task:
         output_file=None,
         always_run=False ):
 
-        if index != None:
-            self.name = f"{operation.__name__}[{index}]"
-        else: 
-            self.name = operation.__name__
+        if name == None:
+            if index != None:
+                self.name = f"{operation.__name__}[{index}]"
+            else: 
+                self.name = operation.__name__
+        else :
+            if index != None:
+                self.name = f"{name}[{index}]"
+            else: 
+                self.name = name
 
         self.pipeline = pipeline
         self.operation = operation
@@ -33,7 +40,7 @@ class Task:
         self.save_action = save_action
         self.dependencies = dependencies
         self.always_run = always_run
-        self.output_file=output_file
+        self.output_file = output_file
 
         self.dryrun_passthrough = False
 

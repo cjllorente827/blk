@@ -1,12 +1,9 @@
 
 import yt
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import AxesGrid, make_axes_locatable
 import numpy as np
 
-plt.style.use("publication")
+from blk.constants import ENZO_FIELDS, DEFAULT_UNITS
+
 yt.set_log_level(40)
 
 Rx = lambda tht: np.array([
@@ -35,10 +32,11 @@ Rotation_Matrix = {
 
 def rotatingProjection(  
             enzo_dataset=None, 
-            field=("gas", "density"), 
-            box_center=(0.5,0.5,0.5), 
-            box_length=1, 
-            img_res=1024, 
+            field="density", 
+            center=[0.5,0.5,0.5], 
+            length=1, 
+            shape="cube",
+            img_res=1024,
             field_units="g/cm**3",
             start_vector=(1,0,0),
             rotation_axis="z",
@@ -52,26 +50,37 @@ def rotatingProjection(
 
     ds = yt.load(enzo_dataset)
 
-    # include a small buffer around the box to avoid deadzones in the plot
-    dl = box_length*1.1 
-    x,y,z = box_center - dl / 2  * np.ones(3)
-    box = ds.r[x:x+dl, y:y+dl, z:z+dl]
+    if shape == "cube" or "box":
+        x,y,z = center
+        half_length = length*1.05/2 # include a small buffer around the box to avoid deadzones in the plot
+        data_source = ds.r[
+            x-half_length:x+half_length, 
+            y-half_length:y+half_length, 
+            z-half_length:z+half_length, 
+        ]
+    elif shape == "sphere" or "ball":
+        data_source = ds.sphere(center, length)
 
     projection_axis = Rotation_Matrix[rotation_axis](rotation_angle) @ start_vector
 
     method = "mip" if use_mip else "integrate"
 
-    proj = yt.OffAxisProjectionPlot(ds, projection_axis, field, 
-        weight_field=field, 
-        data_source=box,
-        north_vector=(0, 0, 1.),
-        center=box_center,
+    proj = yt.OffAxisProjectionPlot(ds, 
+        projection_axis, 
+        ENZO_FIELDS[field], 
+        weight_field=("gas", "density"), 
+        data_source=data_source,
+        north_vector=(0, 1., 0),
+        center=center,
         method=method,
         buff_size=(img_res, img_res),
-        width=box_length)
+        width=2*length)
 
     result = np.array(proj.frb[field].to(field_units).value)
 
     return result
 
 
+def calculateRotationAngle(index=0, num_tasks=1):
+
+    return index/num_tasks * 2 * np.pi

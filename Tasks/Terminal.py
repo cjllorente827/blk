@@ -19,7 +19,7 @@ class Terminal(Task):
             operation=finalize,
             arguments=arguments,
             pipeline=pipeline,
-            dependencies=pipeline.all_tasks[-2],
+            dependencies=pipeline.all_tasks[-1],
             save_action=MANUAL,
             always_run=True,
             output_file=output_file

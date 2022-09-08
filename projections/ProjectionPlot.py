@@ -6,15 +6,27 @@ import numpy as np
 
 plt.style.use("publication")
 
+from blk.constants import DEFAULT_PLOT_SETTINGS
+
 def projectionPlot(   data, 
             enzo_dataset=None, 
-            field_name=None, 
-            img_res=None, 
-            box_length=None, 
+            field="density",
+            zlabel=None, 
+            img_res=1024, 
+            length=None, 
             zlims=None, 
             cmap=None, 
-            axes_units=None,
-            output_file=None):
+            axes_units="Mpccm/h",
+            output_file=None,
+            use_log=True):
+
+    if zlims == None:
+        zlims = DEFAULT_PLOT_SETTINGS[field]["zlims"]
+    if zlabel == None:
+        zlabel = DEFAULT_PLOT_SETTINGS[field]["zlabel"]
+    if cmap == None:
+        cmap = DEFAULT_PLOT_SETTINGS[field]["cmap"]
+    
 
 
     ds = yt.load(enzo_dataset)
@@ -30,20 +42,23 @@ def projectionPlot(   data,
         top = 0.9)
 
     # Fix the x and y axes
-    L = box_length*comoving_box_size/2
+    L = length*comoving_box_size/2
     x = np.linspace(-L, L, img_res+1, endpoint=True)
     y = np.linspace(-L, L, img_res+1, endpoint=True)
     X,Y = np.meshgrid(x,y)
     
-    im = ax.pcolormesh(X, Y, data, 
-        cmap=cmap, 
-        norm=LogNorm(vmin=zlims[0], vmax=zlims[1]))
+    if use_log:
+        im = ax.pcolormesh(X, Y, data, 
+            cmap=cmap, 
+            norm=LogNorm(vmin=zlims[0], vmax=zlims[1]))
+    else:
+        im = ax.pcolormesh(X, Y, data, cmap=cmap, vmin=zlims[0], vmax=zlims[1])
         
     # this is the only way to make a colorbar look good
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cbar = fig.colorbar(im, cax=cax)
-    cbar.set_label(field_name)
+    cbar.set_label(zlabel)
     
     ax.set_xlabel(f'x\n({axes_units})')
     ax.set_ylabel(f'y\n({axes_units})')  
