@@ -1,13 +1,18 @@
 import time
+from mpi4py import MPI
 from blk.utils import format_time
 from blk.constants import ITERATION_LIMIT
 
 def run(self):
 
+    COMM = MPI.COMM_WORLD
+    comm_size = COMM.Get_size()
+    comm_rank = COMM.Get_rank()
+    is_root = comm_rank == 0
+
     start = time.time()
 
-    self.dryrun_mode and print("Performing dry run...")
-    self.writePipelineInfo()
+    self.dryrun_mode and is_root and print("Performing dry run...")
 
     execution_stack = self.root_task.getWorkload()
 
@@ -20,18 +25,18 @@ def run(self):
 
         for task in execution_stack:
             if task.isReady():
-                print(f"[{iterations}] Ready to execute: {str(task)}")
+                is_root and print(f"[{iterations}] Ready to execute: {str(task)}")
                 task_list.append(task)
             else :
-                print(f"[{iterations}] Delaying execution of: {str(task)}")
+                is_root and print(f"[{iterations}] Delaying execution of: {str(task)}")
                 new_execution_stack.append(task)
         # end for task
 
 
         # Run the next batch of tasks and save them to the cache
-        self.runtime = format_time(time.time() - start)
         for task in task_list:
-            print(f"[{iterations}] Running: {str(task)}")
+            COMM.Barrier() # make sure every process is running on the same task
+            is_root and print(f"[{iterations}] Running: {str(task)}")
             task.run()
         # end for task
 

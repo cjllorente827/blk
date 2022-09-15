@@ -1,5 +1,5 @@
 
-from constants import ITERATION_LIMIT
+from blk.constants import ITERATION_LIMIT
 
 def getWorkload(self):
 

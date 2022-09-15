@@ -1,8 +1,8 @@
 
 from mpi4py import MPI
 import time
-from utils import format_time
-from constants import ITERATION_LIMIT
+from blk.utils import format_time
+from blk.constants import ITERATION_LIMIT
 
 def run(self):
 
@@ -52,7 +52,6 @@ def run(self):
         COMM.Barrier()
         # Run the next batch of tasks and save them to the cache
         for task in task_list:
-            self.runtime = format_time(time.time() - start)
             print(f"[{iterations}][Rank {comm_rank}] Running: {str(task)}")
             task.run()
         # end for task

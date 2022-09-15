@@ -1,6 +1,6 @@
 
 import re
-from constants import (
+from blk.constants import (
     ONE_TO_ONE, 
     ALL_TO_ALL, 
     NONE,

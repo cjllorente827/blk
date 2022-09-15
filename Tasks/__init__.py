@@ -1,5 +1,5 @@
 
-from constants import AUTO, MANUAL
+from blk.constants import AUTO, MANUAL
 from os.path import exists
 
 def do_nothing():
@@ -14,6 +14,7 @@ class Task:
         self, 
         name=None,
         pipeline=None,
+        cache=None,
         operation=do_nothing, 
         arguments={}, 
         index=None,
@@ -34,6 +35,12 @@ class Task:
                 self.name = name
 
         self.pipeline = pipeline
+        self.cache = pipeline.cache if pipeline != None else cache
+
+        if self.cache == None:
+            print("[Error] Task cannot be created without a Cache object. Exiting.")
+            exit()
+
         self.operation = operation
         self.arguments = arguments
         self.index = index
@@ -48,11 +55,11 @@ class Task:
         self.result = None
 
         if self.save_action == AUTO:
-            self.output_file = self.pipeline.cache.getResultFilename(self)
+            self.output_file = self.cache.getResultFilename(self)
 
     def __str__(self):
 
-        if self.pipeline.debug_mode:
+        if self.pipeline != None and self.pipeline.debug_mode:
             my_str = f"{self.name}\nHashcode: {self.hashcode}\n"
             
             if self.dependencies != None and len(self.dependencies) > 0:
@@ -97,11 +104,11 @@ class Task:
 
     def resultExists(self):
 
-        if self.pipeline.dryrun_mode:
+        if self.pipeline != None and self.pipeline.dryrun_mode:
             return self.dryrun_passthrough
 
         if self.save_action == AUTO:
-            return self.pipeline.cache.hasResultFor(self)
+            return self.cache.hasResultFor(self)
         elif self.save_action == MANUAL:
             return exists(self.output_file)
         else :
@@ -111,20 +118,26 @@ class Task:
     def getResult(self):
 
         if not self.resultExists():
-            print("[Warning] A call to getResult returned None")
-            return None
+
+            if self.pipeline != None:
+                print("[Warning] A call to getResult returned None")
+                return None
+
+            if self.isReady():
+                print(f"Running: {str(self)}")
+                self.run()
 
         if self.result is not None:
             return self.result
         elif self.save_action == AUTO:
-            return self.pipeline.cache.load(self)
+            return self.cache.load(self)
         elif self.save_action == MANUAL:
             return self.output_file
 
 
     def run(self):
 
-        if self.pipeline.dryrun_mode:
+        if self.pipeline != None and self.pipeline.dryrun_mode:
             self.dryrun_passthrough = True
             return 
 
@@ -145,6 +158,6 @@ class Task:
 
             self.result = self.operation(results, **self.arguments)
 
-        self.pipeline.cache.save(self)
+        self.cache.save(self)
         
             

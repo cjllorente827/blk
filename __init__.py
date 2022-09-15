@@ -1,14 +1,23 @@
-from projections.Projection import projection
-from projections.ProjectionPlot import projectionPlot
-from projections.TwoPanelProjectionPlot import twoPanelProjectionPlot
-from projections.RotatingProjection import rotatingProjection, calculateRotationAngle
+from asyncio import constants
+from blk.projections.Projection import projection
+from blk.projections.ProjectionPlot import projectionPlot
+from blk.projections.TwoPanelProjectionPlot import twoPanelProjectionPlot
+from blk.projections.RotatingProjection import rotatingProjection, calculateRotationAngle
 
-from Profiles.ytRadialProfile import ytRadialProfile
+from blk.Profiles.ytRadialProfile import ytRadialProfile
 
-from PhaseDiagram.ytPhaseDiagram import ytPhaseDiagram
+from blk.PhaseDiagram.ytPhaseDiagram import ytPhaseDiagram
 
-from Cache import Cache
-from Tasks import Task
-from Tasks.Terminal import Terminal
-from Pipeline import Pipeline
-from Pipeline.TaskParallelPipeline import TaskParallelPipeline
+from blk.Cache import Cache
+from blk.Tasks import Task
+from blk.Tasks.Terminal import Terminal
+from blk.Pipeline import Pipeline
+from blk.Pipeline.TaskParallelPipeline import TaskParallelPipeline
+from blk.Pipeline.SegmentParallelPipeline import SegmentParallelPipeline
+
+
+from blk.HaloFinding.SphereMeanDensity import SphereMeanDensity
+from blk.HaloFinding.CentroidFinder import centroidFinder
+from blk.HaloFinding.VirialRadiusFinder import VirialRadiusFinder
+
+

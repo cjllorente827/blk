@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from configparser import ConfigParser, ExtendedInterpolation
-from blk import Pipeline, TaskParallelPipeline
+from blk import Pipeline, TaskParallelPipeline, SegmentParallelPipeline
 import sys
 from os.path import abspath
 
@@ -18,6 +18,8 @@ if __name__ == "__main__":
 
     if config["blk"]["parallel"] == "task":
         pipe = TaskParallelPipeline(config_file)
+    elif config["blk"]["parallel"] == "segment":
+        pipe = SegmentParallelPipeline(config_file)
     else:
         pipe = Pipeline(config_file)
 

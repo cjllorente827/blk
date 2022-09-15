@@ -4,7 +4,7 @@ from os.path import isfile, join, exists
 
 import pickle
 
-from constants import AUTO, MANUAL
+from blk.constants import AUTO, MANUAL
 
 class Cache:
 

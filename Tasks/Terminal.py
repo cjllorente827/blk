@@ -1,6 +1,6 @@
 
-from Tasks import Task
-from enums import MANUAL
+from blk.Tasks import Task
+from blk.constants import MANUAL
 
 
 def finalize(args, pipeline=None):

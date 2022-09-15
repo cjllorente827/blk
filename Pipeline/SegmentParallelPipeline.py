@@ -1,11 +1,10 @@
 
-
 from blk.Pipeline import Pipeline
 
 
-class TaskParallelPipeline(Pipeline):
+class SegmentParallelPipeline(Pipeline):
 
-    from .TaskParallelRun import run
+    from .SegmentParallelRun import run
 
     def __init__(self, config_file):
         super().__init__(config_file)

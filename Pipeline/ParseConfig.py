@@ -1,10 +1,10 @@
 
 
 from os.path import abspath, exists
-from os import mkdir
+from os import mkdir, getenv
 import importlib
 
-from constants import (
+from blk.constants import (
     MANUAL,
     MAX_SEGMENTS,
     ONE_TO_ONE,  
@@ -77,7 +77,9 @@ def parseConfig(self, config):
         if dependency_strategy == ONE_TO_ONE:
             num_tasks = len(self.all_tasks[i-1])
         else :
-            num_tasks = config.getint(current_segment, "num_tasks")
+            num_tasks = config.getint(current_segment, "num_tasks")\
+            if "num_tasks" in config[current_segment].keys() \
+            else 1
 
         if num_tasks == 0:
             print(f"[Error] {current_segment} was created with 0 tasks! Check your config file.")
