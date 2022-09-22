@@ -17,7 +17,7 @@ from blk.Pipeline.SegmentParallelPipeline import SegmentParallelPipeline
 
 
 from blk.HaloFinding.SphereMeanDensity import SphereMeanDensity
-from blk.HaloFinding.CentroidFinder import centroidFinder
+from blk.HaloFinding.CentroidFinder import CentroidFinder
 from blk.HaloFinding.VirialRadiusFinder import VirialRadiusFinder
 
 

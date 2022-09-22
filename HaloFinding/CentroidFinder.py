@@ -6,7 +6,7 @@ from blk.constants import ITERATION_LIMIT
 
 MAX_ITERATIONS = 25
 
-def centroidFinder(
+def CentroidFinder(
     enzo_dataset=None,
     initial_guess=[0.5,0.5,0.5],
     initial_radius=0.04,
@@ -57,4 +57,5 @@ def centroidFinder(
         return centers
     # otherwise, just return the final result
     else:
+        print(f"Halo centroid found at {centers[-1]}")
         return centers[-1]
