@@ -26,15 +26,15 @@ SPECIAL_ARGS = [
     "num_tasks",
     "dependency_strategy",
     "format",
-    "index",
+    "format_start_index",
     "save_action",
     "always_run"
 ]
 
 def parseConfig(self, config):
 
-    comm_size = MPI.COMM_WORLD
-    comm_rank = MPI.COMM_WORLD.Get_rank()
+    comm = MPI.COMM_WORLD
+    comm_rank = comm.Get_rank()
 
     self.cache_dir = abspath(config["blk"]["cache_dir"])
     self.operations_module = importlib.import_module(config["blk"]["operations_module"])
@@ -45,12 +45,8 @@ def parseConfig(self, config):
     if "dryrun_mode" in config["blk"].keys():
         self.dryrun_mode = config.getboolean("blk","dryrun_mode")
 
-    if not exists(self.cache_dir):
-        comm_rank == 0 and print(f"{self.cache_dir} not found\nCreating new directory...")
-        mkdir(self.cache_dir)
 
     self.cache = Cache(self.cache_dir)
-    comm_rank == 0 and print(f"File cache set to : {self.cache_dir}")
 
     i = 1
     while f"segment {i}" in config.sections() and i < MAX_SEGMENTS: 
@@ -99,9 +95,13 @@ def parseConfig(self, config):
         # determine if any format strings need to be created
         format_args = []
         format_strings = []
+        format_start_index = 0
         if "format" in config[current_segment].keys():
             format_args = [a.strip() for a in config[current_segment]["format"].split(',')]
             format_strings = [config[current_segment][a] for a in format_args]
+
+            if "format_start_index" in config[current_segment].keys():
+                format_start_index = config.getint(current_segment, "format_start_index")
             
 
         # TODO: An always run task should clear its cached result before 
@@ -116,7 +116,7 @@ def parseConfig(self, config):
 
             # if any arguments need to be formatted, do that here
             for k, a in enumerate(format_args):
-                config[current_segment][a] = format_strings[k].format(j)
+                config[current_segment][a] = format_strings[k].format(format_start_index+j)
 
             # if using the manual save action, determine the name of the output file
             # make sure this is done after formatting to ensure that the output files
@@ -253,6 +253,8 @@ def guessType(self, value):
         pass
     else:
         return attr
+
+    # TODO: See if its a file 
 
     # Give up and assume its a string
     return value

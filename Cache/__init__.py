@@ -1,6 +1,8 @@
 
-from os import listdir, remove
+from os import listdir, mkdir
 from os.path import isfile, join, exists
+
+from mpi4py import MPI
 
 import pickle
 
@@ -8,14 +10,15 @@ from blk.constants import AUTO, MANUAL
 
 class Cache:
 
-    def __init__(self, directory):
+    from .UI import UI
 
-        self.directory = directory
+    def __init__(self, directory=None):
 
-        # keeps track of what exists in the real cache
-        self.virtual_cache = set()
+        if directory == None:
+            self.directory = '.'
+            return
 
-        self.update()
+        self.setDirectory(directory)
 
     def __str__(self):
         my_str = "Cache contains:\n"
@@ -23,6 +26,27 @@ class Cache:
             my_str += f"{c}\n"
         return my_str
 
+
+    def setDirectory(self, directory):
+
+        self.directory = directory
+
+        comm = MPI.COMM_WORLD
+        comm_rank = comm.Get_rank()
+
+        if not exists(self.directory) and comm_rank == 0:
+            print(f"{self.directory} not found\nCreating new directory...")
+            mkdir(self.directory)
+
+        # Hold here until we're sure the cache exists
+        comm.Barrier()
+
+        # keeps track of what exists in the real cache
+        self.virtual_cache = set()
+
+        self.update()
+
+        comm_rank == 0 and print(f"Cache initialized as : {self.directory}")
 
     # reads the real cache (the disk) and updates the virtual cache based on 
     # what it finds

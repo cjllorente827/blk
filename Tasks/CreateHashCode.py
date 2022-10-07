@@ -24,4 +24,7 @@ def createHashCode(self):
     target = append_args(source_no_ws, self.arguments)
     
     # convert string to a hash
-    return hashlib.md5(target.encode()).hexdigest()
+    hash = hashlib.md5(target.encode()).hexdigest()
+    self.hashcode = hash
+    self.output_file = hash
+    return hash

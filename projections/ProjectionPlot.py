@@ -1,12 +1,55 @@
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import yt
+import yt, os, re
 import numpy as np
+import ipywidgets as widgets
+from IPython import display
 
 plt.style.use("publication")
+#plt.style.use("notebook")
 
-from blk.constants import DEFAULT_PLOT_SETTINGS
+from blk.constants import DEFAULT_PLOT_SETTINGS, ENZO_FIELDS
+from blk.Tasks import Task
+
+class ProjectionPlotTask(Task):
+
+    def __init__(self, 
+        name="projectionPlot", **kwargs):
+
+        super().__init__(
+            name=name,
+            operation=projectionPlot,
+            save_action="manual",
+            always_run=True,
+            **kwargs
+        )
+        
+    # end __init__
+
+    def UI(self):
+
+        self.createWidget(
+            "enzo_dataset", 
+            str, 
+            display_name="Enzo Dataset:"
+        )
+
+        self.createWidget(
+            "output_file", 
+            str, 
+            display_name="Image filename:"
+        )
+
+        self.createWidget(
+            "cmap", 
+            str, 
+            display_name="Colormap:", 
+            default_value="viridis"
+        )
+
+        self.createSaveAndRunButton(display_image=True)
+        self.displayWidgets()
 
 def projectionPlot(   data, 
             enzo_dataset=None, 
@@ -18,7 +61,8 @@ def projectionPlot(   data,
             cmap=None, 
             axes_units="Mpccm/h",
             output_file=None,
-            use_log=True):
+            use_log=True,
+            **kwargs):
 
     if zlims == None:
         zlims = DEFAULT_PLOT_SETTINGS[field]["zlims"]

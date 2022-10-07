@@ -1,7 +1,7 @@
 from asyncio import constants
-from blk.projections.Projection import projection
-from blk.projections.ProjectionPlot import projectionPlot
-from blk.projections.TwoPanelProjectionPlot import twoPanelProjectionPlot
+from blk.projections.Projection import ProjectionTask, projection
+from blk.projections.ProjectionPlot import projectionPlot, ProjectionPlotTask
+from blk.projections.TwoPanelProjectionPlot import twoPanelProjectionPlot, TwoPanelProjectionTask
 from blk.projections.RotatingProjection import rotatingProjection, calculateRotationAngle
 
 from blk.Profiles.ytRadialProfile import ytRadialProfile

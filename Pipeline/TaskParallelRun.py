@@ -14,7 +14,6 @@ def run(self):
     start = time.time()
 
     self.dryrun_mode and is_root and print("Performing dry run...")
-    COMM.Barrier()
 
     execution_stack = None
     task_list = None
@@ -24,7 +23,7 @@ def run(self):
     execution_stack_size = len(execution_stack)
     
     iterations = 0
-    while execution_stack_size > 0 and iterations < 10:
+    while execution_stack_size > 0 and iterations < ITERATION_LIMIT:
         
         iterations += 1
 
